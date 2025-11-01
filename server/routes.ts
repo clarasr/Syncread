@@ -12,7 +12,9 @@ import { findTextMatches } from "./utils/fuzzy-matcher";
 import { calculateSyncPoints } from "./utils/sync-algorithm";
 import { parseFile } from "music-metadata";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
+import { computeFileHash } from "./utils/file-hash";
 import { ObjectPermission } from "./objectAcl";
+import type { SyncSession } from "@shared/schema";
 
 // Setup multer for file uploads
 const uploadDir = path.join(process.cwd(), "uploads");
@@ -120,23 +122,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         writeStream.on('error', reject);
         readStream.on('error', reject);
       });
-      console.log("[EPUB Upload] Download complete, parsing EPUB");
+      console.log("[EPUB Upload] Download complete, computing hash");
+      const [fileStats, contentHash] = await Promise.all([
+        fs.promises.stat(tempFilePath),
+        computeFileHash(tempFilePath),
+      ]);
 
-      // Parse the EPUB
+      // Check for duplicate uploads before doing heavy parsing
+      const existing = await storage.findEpubByHash(userId, contentHash);
+      if (existing) {
+        console.log("[EPUB Upload] Duplicate detected, reusing book", existing.id);
+        await objectStorageService.trySetObjectEntityAclPolicy(uploadedURL, {
+          owner: userId,
+          visibility: "private",
+        });
+        await fs.promises.unlink(tempFilePath);
+        return res.json(existing);
+      }
+
+      console.log("[EPUB Upload] Parsing EPUB");
       const parsed = await parseEpub(tempFilePath);
       console.log("[EPUB Upload] Parsed:", parsed.title, "by", parsed.author);
 
-      // Clean up temp file
-      fs.unlinkSync(tempFilePath);
+      await fs.promises.unlink(tempFilePath);
 
-      // Set ACL policy for the uploaded file
       const normalizedPath = await objectStorageService.trySetObjectEntityAclPolicy(uploadedURL, {
         owner: userId,
         visibility: "private", // EPUBs are private to the user
       });
       console.log("[EPUB Upload] ACL set, creating database record");
 
-      // Create EPUB book record
       const epubBook = await storage.createEpubBook({
         userId,
         title: parsed.title,
@@ -146,6 +161,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         chapters: parsed.chapters,
         htmlChapters: parsed.htmlChapters,
         objectStoragePath: normalizedPath,
+        contentHash,
+        fileSizeBytes: fileStats.size,
       });
       console.log("[EPUB Upload] SUCCESS - Created book with ID:", epubBook.id);
 
@@ -189,9 +206,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         writeStream.on('error', reject);
         readStream.on('error', reject);
       });
-      console.log("[Audio Upload] Download complete, extracting metadata");
+      console.log("[Audio Upload] Download complete, computing hash");
+      const [fileStats, contentHash] = await Promise.all([
+        fs.promises.stat(tempFilePath),
+        computeFileHash(tempFilePath),
+      ]);
 
-      // Get audio metadata
+      // Check for duplicate uploads before metadata extraction
+      const existing = await storage.findAudiobookByHash(userId, contentHash);
+      if (existing) {
+        console.log("[Audio Upload] Duplicate detected, reusing audiobook", existing.id);
+        await objectStorageService.trySetObjectEntityAclPolicy(uploadedURL, {
+          owner: userId,
+          visibility: "private",
+        });
+        return res.json(existing);
+      }
+
+      console.log("[Audio Upload] Extracting metadata");
       const metadata = await parseFile(tempFilePath);
       const duration = metadata.format.duration || 0;
       console.log("[Audio Upload] Duration:", duration, "seconds");
@@ -211,6 +243,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         format: path.extname(filename).substring(1),
         filePath: normalizedPath, // Use object storage path as fallback for legacy field
         objectStoragePath: normalizedPath,
+        contentHash,
+        fileSizeBytes: fileStats.size,
       });
       console.log("[Audio Upload] SUCCESS - Created audiobook with ID:", audiobook.id);
 
@@ -603,6 +637,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const userId = req.user.claims.sub;
       const filePath = req.file.path;
+      const [fileStats, contentHash] = await Promise.all([
+        fs.promises.stat(filePath),
+        computeFileHash(filePath),
+      ]);
+
+      const existing = await storage.findEpubByHash(userId, contentHash);
+      if (existing) {
+        await fs.promises.unlink(filePath).catch(() => undefined);
+        return res.json(existing);
+      }
+
       const parsed = await parseEpub(filePath);
 
       const epubBook = await storage.createEpubBook({
@@ -612,6 +657,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         filename: req.file.originalname,
         textContent: parsed.textContent,
         chapters: parsed.chapters,
+        htmlChapters: parsed.htmlChapters,
+        objectStoragePath: filePath,
+        contentHash,
+        fileSizeBytes: fileStats.size,
       });
 
       res.json(epubBook);
@@ -632,6 +681,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const filePath = req.file.path;
       
       // Get audio metadata
+      const [fileStats, contentHash] = await Promise.all([
+        fs.promises.stat(filePath),
+        computeFileHash(filePath),
+      ]);
+
+      const existing = await storage.findAudiobookByHash(userId, contentHash);
+      if (existing) {
+        await fs.promises.unlink(filePath).catch(() => undefined);
+        return res.json(existing);
+      }
+
       const metadata = await parseFile(filePath);
       const duration = metadata.format.duration || 0;
 
@@ -641,6 +701,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         duration,
         format: path.extname(req.file.originalname).substring(1),
         filePath: req.file.path,
+        objectStoragePath: req.file.path,
+        contentHash,
+        fileSizeBytes: fileStats.size,
       });
 
       res.json(audiobook);
@@ -676,6 +739,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         currentStep: "extracting",
         syncMode: syncMode as "full" | "progressive",
         wordChunkSize,
+        progressVersion: 1,
+        playbackPositionSec: 0,
+        playbackProgress: 0,
+        playbackUpdatedAt: new Date(),
       });
 
       // Start async processing based on sync mode
@@ -741,6 +808,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Sync retry error:", error);
       res.status(500).json({ error: error.message || "Failed to retry sync" });
+    }
+  });
+
+  // Persist playback progress (requires authentication)
+  app.post("/api/sync/:id/progress", isAuthenticated, async (req: any, res) => {
+    try {
+      const sessionId = req.params.id;
+      const userId = req.user.claims.sub;
+      const { positionSec, durationSec, progressVersion } = req.body ?? {};
+
+      if (typeof positionSec !== "number" || Number.isNaN(positionSec) || positionSec < 0) {
+        return res.status(400).json({ error: "positionSec must be a positive number" });
+      }
+
+      const session = await storage.getSyncSession(sessionId);
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+
+      if (session.userId !== userId) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+
+      const safeDuration =
+        typeof durationSec === "number" && Number.isFinite(durationSec) && durationSec > 0
+          ? durationSec
+          : undefined;
+
+      const playbackPositionSec = safeDuration
+        ? Math.min(positionSec, safeDuration)
+        : positionSec;
+
+      const playbackProgress = safeDuration
+        ? Math.min(100, Math.max(0, (playbackPositionSec / safeDuration) * 100))
+        : 0;
+
+      const updates: Partial<SyncSession> = {
+        playbackPositionSec,
+        playbackProgress,
+        playbackUpdatedAt: new Date(),
+      };
+
+      if (
+        typeof progressVersion === "number" &&
+        Number.isFinite(progressVersion) &&
+        progressVersion > (session.progressVersion ?? 1)
+      ) {
+        updates.progressVersion = Math.floor(progressVersion);
+      }
+
+      const updated = await storage.updateSyncSession(sessionId, updates);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Failed to persist playback progress:", error);
+      res.status(500).json({ error: error.message || "Failed to persist progress" });
     }
   });
 

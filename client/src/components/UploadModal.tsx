@@ -1,11 +1,17 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { FileUploadZone } from "@/components/FileUploadZone";
 import { BookOpen, Music } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import {
+  validateUploadFile,
+  getUploadStageProgress,
+  getUploadStatusMessage,
+  getUploadRules,
+  type UploadStage,
+} from "@/lib/uploadValidation";
 
 interface UploadModalProps {
   open: boolean;
@@ -17,27 +23,41 @@ type UploadType = "epub" | "audio" | null;
 export function UploadModal({ open, onClose }: UploadModalProps) {
   const [uploadType, setUploadType] = useState<UploadType>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [stage, setStage] = useState<UploadStage>("idle");
   const { toast } = useToast();
 
   const handleClose = () => {
     setUploadType(null);
     setFile(null);
-    setUploading(false);
+    setStage("idle");
     onClose();
   };
 
   const handleFileSelect = async (selectedFile: File | null) => {
     if (!selectedFile) {
       setFile(null);
-      setUploading(false);
+      setStage("idle");
       return;
     }
 
     if (!uploadType) return;
 
     setFile(selectedFile);
-    setUploading(true);
+    setStage("validating");
+
+    const validation = validateUploadFile(selectedFile, uploadType);
+    if (!validation.valid) {
+      toast({
+        variant: "destructive",
+        title: "Cannot upload file",
+        description: validation.error,
+      });
+      setFile(null);
+      setStage("idle");
+      return;
+    }
+
+    setStage("uploading");
 
     let timeoutId: NodeJS.Timeout | null = null;
 
@@ -63,7 +83,9 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
       // Step 3: Process the uploaded file (download, extract metadata, set ACL)
       // For large files, this can take a while - show different message
       const processEndpoint = uploadType === "epub" ? "/api/process/epub" : "/api/process/audio";
-      
+
+      setStage("processing");
+
       // Add timeout for large file processing (5 minutes)
       const timeoutPromise = new Promise((_, reject) => {
         timeoutId = setTimeout(() => {
@@ -83,6 +105,8 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
       });
 
       const response = await Promise.race([processPromise, timeoutPromise]);
+
+      setStage("complete");
 
       // Clear timeout on success
       if (timeoutId) {
@@ -131,10 +155,22 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
         }, 10000);
       } else {
         setFile(null);
-        setUploading(false);
+        setStage("idle");
       }
     }
   };
+
+  const helperText = useMemo(() => {
+    if (!uploadType) return undefined;
+    const rules = getUploadRules(uploadType);
+    return `Max ${rules.maxSizeMb}MB • ${rules.extensions.join(", ")}`;
+  }, [uploadType]);
+
+  const uploadProgress = uploadType ? getUploadStageProgress(stage) : undefined;
+  const statusMessage = uploadType && stage !== "idle"
+    ? getUploadStatusMessage(stage, uploadType)
+    : undefined;
+  const isBusy = stage !== "idle" && stage !== "complete";
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
@@ -173,7 +209,10 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
               type={uploadType}
               file={file || undefined}
               onFileSelect={handleFileSelect}
-              uploadProgress={uploading ? 50 : undefined}
+              uploadProgress={uploadProgress}
+              statusMessage={statusMessage}
+              isBusy={isBusy}
+              helperText={helperText}
             />
 
             <Button
@@ -182,6 +221,7 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
               onClick={() => {
                 setUploadType(null);
                 setFile(null);
+                setStage("idle");
               }}
               data-testid="button-back"
             >

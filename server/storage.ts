@@ -24,6 +24,7 @@ export interface IStorage {
 
   // EPUB Book methods
   createEpubBook(book: InsertEpubBook): Promise<EpubBook>;
+  findEpubByHash(userId: string, contentHash: string): Promise<EpubBook | undefined>;
   getEpubBook(id: string): Promise<EpubBook | undefined>;
   getAllEpubBooks(): Promise<EpubBook[]>;
   getUserEpubBooks(userId: string): Promise<EpubBook[]>;
@@ -32,6 +33,7 @@ export interface IStorage {
 
   // Audiobook methods
   createAudiobook(audiobook: InsertAudiobook): Promise<Audiobook>;
+  findAudiobookByHash(userId: string, contentHash: string): Promise<Audiobook | undefined>;
   getAudiobook(id: string): Promise<Audiobook | undefined>;
   getAllAudiobooks(): Promise<Audiobook[]>;
   getUserAudiobooks(userId: string): Promise<Audiobook[]>;
@@ -86,6 +88,11 @@ export class MemStorage implements IStorage {
 
   // EPUB Book methods
   async createEpubBook(insertBook: InsertEpubBook): Promise<EpubBook> {
+    const existing = await this.findEpubByHash(insertBook.userId, insertBook.contentHash);
+    if (existing) {
+      return existing;
+    }
+
     const book: EpubBook = {
       id: randomUUID(),
       userId: insertBook.userId,
@@ -95,11 +102,19 @@ export class MemStorage implements IStorage {
       textContent: insertBook.textContent,
       chapters: insertBook.chapters ?? null,
       htmlChapters: insertBook.htmlChapters ?? null,
-      objectStoragePath: insertBook.objectStoragePath ?? null,
+      objectStoragePath: insertBook.objectStoragePath,
+      contentHash: insertBook.contentHash,
+      fileSizeBytes: insertBook.fileSizeBytes ?? null,
       createdAt: new Date(),
     };
     this.epubBooks.set(book.id, book);
     return book;
+  }
+
+  async findEpubByHash(userId: string, contentHash: string): Promise<EpubBook | undefined> {
+    return Array.from(this.epubBooks.values()).find(
+      (book) => book.userId === userId && book.contentHash === contentHash
+    );
   }
 
   async getEpubBook(id: string): Promise<EpubBook | undefined> {
@@ -131,6 +146,11 @@ export class MemStorage implements IStorage {
 
   // Audiobook methods
   async createAudiobook(insertAudiobook: InsertAudiobook): Promise<Audiobook> {
+    const existing = await this.findAudiobookByHash(insertAudiobook.userId, insertAudiobook.contentHash);
+    if (existing) {
+      return existing;
+    }
+
     const audiobook: Audiobook = {
       id: randomUUID(),
       userId: insertAudiobook.userId,
@@ -139,11 +159,19 @@ export class MemStorage implements IStorage {
       duration: insertAudiobook.duration,
       format: insertAudiobook.format,
       filePath: insertAudiobook.filePath,
-      objectStoragePath: insertAudiobook.objectStoragePath ?? null,
+      objectStoragePath: insertAudiobook.objectStoragePath,
+      contentHash: insertAudiobook.contentHash,
+      fileSizeBytes: insertAudiobook.fileSizeBytes ?? null,
       createdAt: new Date(),
     };
     this.audiobooks.set(audiobook.id, audiobook);
     return audiobook;
+  }
+
+  async findAudiobookByHash(userId: string, contentHash: string): Promise<Audiobook | undefined> {
+    return Array.from(this.audiobooks.values()).find(
+      (audiobook) => audiobook.userId === userId && audiobook.contentHash === contentHash
+    );
   }
 
   async getAudiobook(id: string): Promise<Audiobook | undefined> {
@@ -190,6 +218,10 @@ export class MemStorage implements IStorage {
       syncedUpToWord: insertSession.syncedUpToWord ?? 0,
       wordChunkSize: insertSession.wordChunkSize ?? 1000,
       error: insertSession.error ?? null,
+      progressVersion: insertSession.progressVersion ?? 1,
+      playbackPositionSec: insertSession.playbackPositionSec ?? 0,
+      playbackProgress: insertSession.playbackProgress ?? 0,
+      playbackUpdatedAt: insertSession.playbackUpdatedAt ?? new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -284,16 +316,35 @@ export class DbStorage implements IStorage {
 
   // EPUB Book methods
   async createEpubBook(book: InsertEpubBook): Promise<EpubBook> {
-    const result = await db.insert(epubBooks).values({
-      userId: book.userId,
-      title: book.title,
-      author: book.author,
-      filename: book.filename,
-      textContent: book.textContent,
-      chapters: book.chapters,
-      htmlChapters: book.htmlChapters,
-      objectStoragePath: book.objectStoragePath,
-    }).returning();
+    const existing = await this.findEpubByHash(book.userId, book.contentHash);
+    if (existing) {
+      return existing;
+    }
+
+    const result = await db
+      .insert(epubBooks)
+      .values({
+        userId: book.userId,
+        title: book.title,
+        author: book.author,
+        filename: book.filename,
+        textContent: book.textContent,
+        chapters: book.chapters,
+        htmlChapters: book.htmlChapters,
+        objectStoragePath: book.objectStoragePath,
+        contentHash: book.contentHash,
+        fileSizeBytes: book.fileSizeBytes,
+      })
+      .returning();
+    return result[0];
+  }
+
+  async findEpubByHash(userId: string, contentHash: string): Promise<EpubBook | undefined> {
+    const result = await db
+      .select()
+      .from(epubBooks)
+      .where(and(eq(epubBooks.userId, userId), eq(epubBooks.contentHash, contentHash)))
+      .limit(1);
     return result[0];
   }
 
@@ -325,15 +376,34 @@ export class DbStorage implements IStorage {
 
   // Audiobook methods
   async createAudiobook(audiobook: InsertAudiobook): Promise<Audiobook> {
-    const result = await db.insert(audiobooks).values({
-      userId: audiobook.userId,
-      title: audiobook.title,
-      filename: audiobook.filename,
-      duration: audiobook.duration,
-      format: audiobook.format,
-      filePath: audiobook.filePath,
-      objectStoragePath: audiobook.objectStoragePath,
-    }).returning();
+    const existing = await this.findAudiobookByHash(audiobook.userId, audiobook.contentHash);
+    if (existing) {
+      return existing;
+    }
+
+    const result = await db
+      .insert(audiobooks)
+      .values({
+        userId: audiobook.userId,
+        title: audiobook.title,
+        filename: audiobook.filename,
+        duration: audiobook.duration,
+        format: audiobook.format,
+        filePath: audiobook.filePath,
+        objectStoragePath: audiobook.objectStoragePath,
+        contentHash: audiobook.contentHash,
+        fileSizeBytes: audiobook.fileSizeBytes,
+      })
+      .returning();
+    return result[0];
+  }
+
+  async findAudiobookByHash(userId: string, contentHash: string): Promise<Audiobook | undefined> {
+    const result = await db
+      .select()
+      .from(audiobooks)
+      .where(and(eq(audiobooks.userId, userId), eq(audiobooks.contentHash, contentHash)))
+      .limit(1);
     return result[0];
   }
 
@@ -365,21 +435,28 @@ export class DbStorage implements IStorage {
 
   // Sync Session methods
   async createSyncSession(session: InsertSyncSession): Promise<SyncSession> {
-    const result = await db.insert(syncSessions).values({
-      userId: session.userId,
-      epubId: session.epubId,
-      audioId: session.audioId,
-      status: session.status,
-      progress: session.progress,
-      currentStep: session.currentStep,
-      totalChunks: session.totalChunks,
-      currentChunk: session.currentChunk,
-      syncAnchors: session.syncAnchors,
-      syncMode: session.syncMode,
-      syncedUpToWord: session.syncedUpToWord,
-      wordChunkSize: session.wordChunkSize,
-      error: session.error,
-    }).returning();
+    const result = await db
+      .insert(syncSessions)
+      .values({
+        userId: session.userId,
+        epubId: session.epubId,
+        audioId: session.audioId,
+        status: session.status,
+        progress: session.progress,
+        currentStep: session.currentStep,
+        totalChunks: session.totalChunks,
+        currentChunk: session.currentChunk,
+        syncAnchors: session.syncAnchors,
+        syncMode: session.syncMode,
+        syncedUpToWord: session.syncedUpToWord,
+        wordChunkSize: session.wordChunkSize,
+        error: session.error,
+        progressVersion: session.progressVersion,
+        playbackPositionSec: session.playbackPositionSec,
+        playbackProgress: session.playbackProgress,
+        playbackUpdatedAt: session.playbackUpdatedAt,
+      })
+      .returning();
     return result[0];
   }
 

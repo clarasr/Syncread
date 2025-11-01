@@ -45,7 +45,8 @@ export function MinimizedAudioPlayer({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : Math.max(currentTime || 0, 1);
+  const progress = safeDuration > 0 ? Math.min(100, (currentTime / safeDuration) * 100) : 0;
 
   const speeds = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
@@ -147,16 +148,16 @@ export function MinimizedAudioPlayer({
         {/* Seek Slider */}
         <div className="w-full max-w-md space-y-2">
           <Slider
-            value={[currentTime]}
+            value={[Math.min(currentTime, safeDuration)]}
             onValueChange={([value]) => onSeek(value)}
             min={0}
-            max={duration}
+            max={safeDuration}
             step={1}
             data-testid="slider-seek"
           />
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>{formatTime(currentTime)}</span>
-            <span>{formatTime(duration)}</span>
+            <span>{formatTime(safeDuration)}</span>
           </div>
         </div>
 
