@@ -28,7 +28,13 @@ export function UploadModal({ open, onClose }: UploadModalProps) {
   };
 
   const handleFileSelect = async (selectedFile: File | null) => {
-    if (!selectedFile || !uploadType) return;
+    if (!selectedFile) {
+      setFile(null);
+      setUploading(false);
+      return;
+    }
+
+    if (!uploadType) return;
 
     setFile(selectedFile);
     setUploading(true);

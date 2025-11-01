@@ -7,7 +7,7 @@ import { useState } from "react";
 
 interface FileUploadZoneProps {
   type: "epub" | "audio";
-  onFileSelect: (file: File) => void;
+  onFileSelect: (file: File | null) => void;
   file?: File;
   uploadProgress?: number;
 }
@@ -62,7 +62,7 @@ export function FileUploadZone({ type, onFileSelect, file, uploadProgress }: Fil
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => onFileSelect(null as any)}
+                onClick={() => onFileSelect(null)}
                 data-testid={`button-remove-${type}`}
               >
                 <X className="h-4 w-4" />
@@ -79,8 +79,8 @@ export function FileUploadZone({ type, onFileSelect, file, uploadProgress }: Fil
               accept={acceptedFormats}
               className="hidden"
               onChange={(e) => {
-                const selectedFile = e.target.files?.[0];
-                if (selectedFile) onFileSelect(selectedFile);
+                const selectedFile = e.target.files?.[0] ?? null;
+                onFileSelect(selectedFile);
               }}
               data-testid={`input-file-${type}`}
             />
