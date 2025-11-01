@@ -10,9 +10,12 @@ interface FileUploadZoneProps {
   onFileSelect: (file: File | null) => void;
   file?: File;
   uploadProgress?: number;
+  statusMessage?: string;
+  isBusy?: boolean;
+  helperText?: string;
 }
 
-export function FileUploadZone({ type, onFileSelect, file, uploadProgress }: FileUploadZoneProps) {
+export function FileUploadZone({ type, onFileSelect, file, uploadProgress, statusMessage, isBusy = false, helperText }: FileUploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false);
 
   const handleDrop = (e: React.DragEvent) => {
@@ -69,7 +72,19 @@ export function FileUploadZone({ type, onFileSelect, file, uploadProgress }: Fil
               </Button>
             </div>
             {uploadProgress !== undefined && uploadProgress < 100 && (
-              <Progress value={uploadProgress} className="h-2" />
+              <div className="space-y-2">
+                <Progress value={uploadProgress} className="h-2" />
+                {statusMessage && (
+                  <p className="text-xs text-muted-foreground" data-testid={`text-upload-status-${type}`}>
+                    {statusMessage}
+                  </p>
+                )}
+              </div>
+            )}
+            {uploadProgress !== undefined && uploadProgress >= 100 && statusMessage && (
+              <p className="text-xs text-muted-foreground" data-testid={`text-upload-status-${type}`}>
+                {statusMessage}
+              </p>
             )}
           </div>
         ) : (
@@ -83,6 +98,7 @@ export function FileUploadZone({ type, onFileSelect, file, uploadProgress }: Fil
                 onFileSelect(selectedFile);
               }}
               data-testid={`input-file-${type}`}
+              disabled={isBusy}
             />
             <div className="space-y-4">
               <div className="flex justify-center">
@@ -109,6 +125,11 @@ export function FileUploadZone({ type, onFileSelect, file, uploadProgress }: Fil
                   )}
                 </div>
               </div>
+              {helperText && (
+                <p className="text-xs text-muted-foreground" data-testid={`text-upload-helper-${type}`}>
+                  {helperText}
+                </p>
+              )}
             </div>
           </label>
         )}

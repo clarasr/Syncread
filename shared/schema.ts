@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, jsonb, real, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, jsonb, real, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -13,9 +13,15 @@ export const epubBooks = pgTable("epub_books", {
   textContent: text("text_content").notNull(),
   chapters: jsonb("chapters").$type<{ title: string; startIndex: number; endIndex: number; wordCount?: number }[]>(),
   htmlChapters: jsonb("html_chapters").$type<{ title: string; html: string; css?: string }[]>(), // Preserve EPUB formatting
-  objectStoragePath: text("object_storage_path"), // Path in Object Storage (e.g., /objects/uploads/xxx.epub)
+  objectStoragePath: text("object_storage_path").notNull(), // Path in Object Storage (e.g., /objects/uploads/xxx.epub)
+  contentHash: text("content_hash").notNull(),
+  fileSizeBytes: integer("file_size_bytes"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+},
+  (table) => ({
+    contentHashIdx: uniqueIndex("epub_books_user_hash_idx").on(table.userId, table.contentHash),
+  })
+);
 
 export const insertEpubBookSchema = createInsertSchema(epubBooks).omit({
   id: true,
@@ -34,9 +40,15 @@ export const audiobooks = pgTable("audiobooks", {
   duration: real("duration").notNull(),
   format: text("format").notNull(),
   filePath: text("file_path").notNull(), // Legacy: local filesystem path
-  objectStoragePath: text("object_storage_path"), // Path in Object Storage (e.g., /objects/uploads/xxx.mp3)
+  objectStoragePath: text("object_storage_path").notNull(), // Path in Object Storage (e.g., /objects/uploads/xxx.mp3)
+  contentHash: text("content_hash").notNull(),
+  fileSizeBytes: integer("file_size_bytes"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+},
+  (table) => ({
+    contentHashIdx: uniqueIndex("audiobooks_user_hash_idx").on(table.userId, table.contentHash),
+  })
+);
 
 export const insertAudiobookSchema = createInsertSchema(audiobooks).omit({
   id: true,
@@ -62,6 +74,10 @@ export const syncSessions = pgTable("sync_sessions", {
   syncedUpToWord: integer("synced_up_to_word").default(0),
   wordChunkSize: integer("word_chunk_size").default(1000),
   error: text("error"),
+  progressVersion: integer("progress_version").default(1),
+  playbackPositionSec: real("playback_position_sec").default(0),
+  playbackProgress: real("playback_progress").default(0),
+  playbackUpdatedAt: timestamp("playback_updated_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

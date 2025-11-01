@@ -5,6 +5,7 @@ import { BookOpen, Headphones, Sparkles, Palette, Type } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
+import { getUploadRules } from "@/lib/uploadValidation";
 
 export default function Home() {
   const [epubFile, setEpubFile] = useState<File>();
@@ -16,6 +17,9 @@ export default function Home() {
   const [syncing, setSyncing] = useState(false);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+
+  const epubRules = getUploadRules("epub");
+  const audioRules = getUploadRules("audio");
 
   const handleLogout = () => {
     window.location.href = "/api/logout";
@@ -154,13 +158,19 @@ export default function Home() {
               type="epub"
               file={epubFile}
               onFileSelect={handleEpubSelect}
-              uploadProgress={uploadingEpub ? 50 : undefined}
+              uploadProgress={uploadingEpub ? 45 : undefined}
+              statusMessage={uploadingEpub ? "Uploading book" : undefined}
+              isBusy={uploadingEpub}
+              helperText={`Max ${epubRules.maxSizeMb}MB • ${epubRules.extensions.join(", ")}`}
             />
             <FileUploadZone
               type="audio"
               file={audioFile}
               onFileSelect={handleAudioSelect}
-              uploadProgress={uploadingAudio ? 50 : undefined}
+              uploadProgress={uploadingAudio ? 45 : undefined}
+              statusMessage={uploadingAudio ? "Uploading audio" : undefined}
+              isBusy={uploadingAudio}
+              helperText={`Max ${audioRules.maxSizeMb}MB • ${audioRules.extensions.join(", ")}`}
             />
           </div>
 

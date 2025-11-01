@@ -20,6 +20,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useReaderTheme } from "@/hooks/use-reader-theme";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SyncSession, EpubBook, Audiobook } from "@shared/schema";
+import { useDebouncedProgress } from "@/hooks/useDebouncedProgress";
 
 export default function Reader() {
   const [location, setLocation] = useLocation();
@@ -104,15 +105,96 @@ export default function Reader() {
     enabled: !!session?.audioId,
   });
 
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const handleTimeUpdateRef = useRef<(() => void) | null>(null);
+  const handleEndedRef = useRef<(() => void) | null>(null);
+  const resumeAppliedRef = useRef(false);
+  const latestSessionRef = useRef<SyncSession | null>(null);
+
+  const resolveDuration = () => {
+    const rawDuration = audioRef.current?.duration;
+    if (typeof rawDuration === "number" && Number.isFinite(rawDuration) && rawDuration > 0) {
+      return rawDuration;
+    }
+    if (typeof audiobook?.duration === "number" && audiobook.duration > 0) {
+      return audiobook.duration;
+    }
+    return undefined;
+  };
+
+  const { schedule: scheduleProgressUpdate, flush: flushProgressUpdate } = useDebouncedProgress(
+    async (positionSec) => {
+      if (!sessionId) return;
+      const duration = resolveDuration();
+      const clampedPosition = duration ? Math.min(Math.max(positionSec, 0), duration) : Math.max(positionSec, 0);
+
+      try {
+        const updatedSession = await apiRequest(`/api/sync/${sessionId}/progress`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            positionSec: clampedPosition,
+            durationSec: duration ?? null,
+            progressVersion: latestSessionRef.current?.progressVersion ?? 1,
+          }),
+        });
+
+        if (updatedSession) {
+          latestSessionRef.current = updatedSession;
+          queryClient.setQueryData(["/api/sync", sessionId], updatedSession);
+        }
+      } catch (error) {
+        console.error("Failed to persist playback progress:", error);
+      }
+    },
+    5000
+  );
+
+  const applyStoredPlaybackPosition = () => {
+    const latest = latestSessionRef.current;
+    if (!latest || !audioRef.current || resumeAppliedRef.current) return;
+
+    const stored = latest.playbackPositionSec ?? 0;
+    if (stored <= 0) {
+      resumeAppliedRef.current = true;
+      return;
+    }
+
+    const duration = resolveDuration();
+    const clamped = duration ? Math.min(stored, duration) : stored;
+    audioRef.current.currentTime = clamped;
+    setCurrentTime(clamped);
+    resumeAppliedRef.current = true;
+  };
+
+  useEffect(() => {
+    latestSessionRef.current = session ?? null;
+    if (!session) {
+      resumeAppliedRef.current = false;
+    }
+  }, [session]);
+
+  useEffect(() => {
+    if ((session?.playbackPositionSec ?? 0) === 0) {
+      resumeAppliedRef.current = false;
+    }
+  }, [session?.playbackPositionSec]);
+
+  useEffect(() => {
+    applyStoredPlaybackPosition();
+  }, [session?.playbackPositionSec, audiobook?.id]);
+
   // Throttle position updates to reduce server load
   const lastPositionUpdateRef = useRef(0);
   
   // Update highlighted sentence based on audio time and track current text index (throttled)
   useEffect(() => {
     if (!session || !sessionId) return;
-    
+
     // Allow playback if we have any synced content (progressive mode)
-    const canPlay = session.status === "complete" || 
+    const canPlay = session.status === "complete" ||
                    (session.syncMode === "progressive" && (session.syncedUpToWord || 0) > 0);
     
     if (!canPlay) return;
@@ -141,6 +223,28 @@ export default function Reader() {
       updatePosition();
     }
   }, [currentTime, isPlaying, session, sessionId]);
+
+  useEffect(() => {
+    if (!sessionId || !isPlaying) return;
+    scheduleProgressUpdate(currentTime);
+  }, [currentTime, isPlaying, sessionId, scheduleProgressUpdate]);
+
+  useEffect(() => {
+    if (isPlaying || !sessionId) return;
+    scheduleProgressUpdate(currentTime);
+    flushProgressUpdate();
+  }, [isPlaying, sessionId, currentTime, scheduleProgressUpdate, flushProgressUpdate]);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      flushProgressUpdate();
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [flushProgressUpdate]);
 
   // Auto-advance progressive sync when approaching end of synced content
   const advanceRequestedRef = useRef(false);
@@ -181,38 +285,39 @@ export default function Reader() {
     }
   }, [currentTextIndex, session, epub, sessionId]);
 
-  // Audio element ref and event handlers
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const handleTimeUpdateRef = useRef<(() => void) | null>(null);
-  const handleEndedRef = useRef<(() => void) | null>(null);
-
   // Initialize audio element
   useEffect(() => {
     if (!audiobook?.id || audioRef.current) return;
-    
+
     const audio = new Audio(`/api/library/audiobooks/${audiobook.id}/stream`);
-    
+
     const handleTimeUpdate = () => {
       setCurrentTime(audio.currentTime);
     };
-    
+
     const handleEnded = () => {
       setIsPlaying(false);
     };
-    
+
+    const handleLoadedMetadata = () => {
+      applyStoredPlaybackPosition();
+    };
+
     // Store refs for cleanup
     handleTimeUpdateRef.current = handleTimeUpdate;
     handleEndedRef.current = handleEnded;
-    
+
     audio.addEventListener("timeupdate", handleTimeUpdate);
     audio.addEventListener("ended", handleEnded);
-    
+    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+
     // Set initial playback properties from current state
     audio.playbackRate = playbackSpeed;
     audio.volume = volume;
-    
+
     audioRef.current = audio;
-    
+    applyStoredPlaybackPosition();
+
     // If user already hit play before audio loaded, start playback
     if (isPlaying) {
       audio.play().catch(err => {
@@ -225,6 +330,7 @@ export default function Reader() {
       audio.pause();
       audio.removeEventListener("timeupdate", handleTimeUpdate);
       audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
       if (audioRef.current === audio) {
         audioRef.current = null;
       }
@@ -262,20 +368,26 @@ export default function Reader() {
   const handleSkipBack = () => {
     if (audioRef.current) {
       audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 15);
+      scheduleProgressUpdate(audioRef.current.currentTime);
     }
   };
 
   const handleSkipForward = () => {
     if (audioRef.current && audiobook) {
-      const maxTime = isFinite(audioRef.current.duration) ? audioRef.current.duration : audiobook.duration;
+      const maxTime = resolveDuration() ?? audiobook.duration;
       audioRef.current.currentTime = Math.min(maxTime, audioRef.current.currentTime + 15);
+      scheduleProgressUpdate(audioRef.current.currentTime);
     }
   };
 
   const handleSeek = (time: number) => {
     if (audioRef.current) {
-      audioRef.current.currentTime = time;
-      setCurrentTime(time);
+      const maxTime = resolveDuration();
+      const clamped = maxTime ? Math.min(Math.max(time, 0), maxTime) : Math.max(time, 0);
+      audioRef.current.currentTime = clamped;
+      setCurrentTime(clamped);
+      scheduleProgressUpdate(clamped);
+      flushProgressUpdate();
     }
   };
 
@@ -304,7 +416,7 @@ export default function Reader() {
   const hasError = session.status === "error";
   const isComplete = session.status === "complete";
   const isPaused = session.status === "paused";
-  
+
   // For progressive mode, allow reading if any content is synced (including when paused)
   const canRead = isComplete || isPaused || (session.syncMode === "progressive" && (session.syncedUpToWord || 0) > 0);
 
@@ -312,6 +424,8 @@ export default function Reader() {
   const shouldShowModal = isProcessing && !modalDismissed && (
     session.syncMode !== "progressive" || (session.syncedUpToWord || 0) === 0
   );
+
+  const resolvedDuration = resolveDuration() ?? (typeof audiobook?.duration === "number" ? audiobook.duration : 0);
 
   return (
     <div className="h-screen flex flex-col" data-theme={selectedTheme}>
@@ -535,7 +649,7 @@ export default function Reader() {
         <MinimizedAudioPlayer
           isPlaying={isPlaying}
           currentTime={currentTime}
-          duration={audiobook.duration}
+          duration={resolvedDuration}
           bookTitle={epub?.title || "Unknown"}
           chapterTitle={epub?.chapters?.[0]?.title || "Chapter 1"}
           playbackSpeed={playbackSpeed}
