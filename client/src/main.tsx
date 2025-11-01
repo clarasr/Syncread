@@ -1,11 +1,5 @@
-import React from "react";
+import { createRoot } from "react-dom/client";
+import App from "./App";
+import "./index.css";
 
-const Main: React.FC = () => {
-  return (
-    <div className="placeholder-component">
-      <p>client/src/main.tsx placeholder</p>
-    </div>
-  );
-};
-
-export default Main;
+createRoot(document.getElementById("root")!).render(<App />);

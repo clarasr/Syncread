@@ -1,13 +1,15 @@
 # Code Review Notes
 
-## Placeholder Source Files
-The `client/`, `server/`, and `shared/` directories now exist with placeholder implementations that keep the project
-structure intact. Replace each placeholder with the original logic before attempting to build or run the project.
+## Restored Source Layout
+- Actual client, server, and shared modules have been recovered from the uploaded root-level files and moved into their proper folders.
+- Placeholder React stubs and helper shims have been removed so the TypeScript sources in `client/src`, `server/`, and `shared/` now match the production codebase again.
 
-## Schema Path in Drizzle Config
-`drizzle.config.ts` expects `./shared/schema.ts`; a placeholder file has been added so commands resolve, but the actual schema
-definition still needs to be restored from the original project.
+## Environment and Secrets Checklist
+- The backend expects a Postgres connection string in `DATABASE_URL`; without it the server boot throws immediately in `server/db.ts`.
+- Replit OIDC login requires `REPLIT_DOMAINS`, `REPL_ID`, `SESSION_SECRET`, and related issuer variables before `/api/login` can succeed.
+- Object storage integration depends on `PRIVATE_OBJECT_DIR` and `PUBLIC_OBJECT_SEARCH_PATHS`; missing values cause runtime errors when uploading/serving files.
+- Whisper transcription needs the OpenAI key (`OPENAI_API_KEY`) exposed in the environment for `server/utils/whisper-service.ts`.
 
-## Binary Assets Missing
-Image and media assets referenced in the original index were not available in the upload. Re-add the listed files under
-`attached_assets/` and `test-files/` so the application can render and test correctly.
+## Follow-up Suggestions
+- Replace the lightweight placeholder media in `test-files/` with the real EPUB/MP3 fixtures if you need parity with production demos.
+- Re-run `drizzle-kit push` (or your migration workflow) after configuring the database to ensure the schema matches `shared/schema.ts`.

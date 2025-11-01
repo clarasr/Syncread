@@ -1,3 +1,6 @@
-export const utilsPlaceholder = () => {
-  throw new Error("client/src/lib/utils.ts is a placeholder. Replace with real implementation.");
-};
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}

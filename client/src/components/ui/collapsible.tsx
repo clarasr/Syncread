@@ -1,11 +1,11 @@
-import React from "react";
+"use client"
 
-const Collapsible: React.FC = () => {
-  return (
-    <div className="placeholder-component">
-      <p>client/src/components/ui/collapsible.tsx placeholder</p>
-    </div>
-  );
-};
+import * as CollapsiblePrimitive from "@radix-ui/react-collapsible"
 
-export default Collapsible;
+const Collapsible = CollapsiblePrimitive.Root
+
+const CollapsibleTrigger = CollapsiblePrimitive.CollapsibleTrigger
+
+const CollapsibleContent = CollapsiblePrimitive.CollapsibleContent
+
+export { Collapsible, CollapsibleTrigger, CollapsibleContent }

@@ -1,11 +1,5 @@
-import React from "react";
+import * as AspectRatioPrimitive from "@radix-ui/react-aspect-ratio"
 
-const AspectRatio: React.FC = () => {
-  return (
-    <div className="placeholder-component">
-      <p>client/src/components/ui/aspect-ratio.tsx placeholder</p>
-    </div>
-  );
-};
+const AspectRatio = AspectRatioPrimitive.Root
 
-export default AspectRatio;
+export { AspectRatio }
