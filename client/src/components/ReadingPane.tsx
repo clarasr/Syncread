@@ -1,23 +1,115 @@
-import { ReadingPane } from '../ReadingPane';
-import { useState } from 'react';
+import { useMemo } from "react";
 
-const mockContent = `The old library stood silent in the heart of the city, its towering shelves holding thousands of stories waiting to be discovered. Sarah pushed open the heavy oak door, breathing in the familiar scent of aged paper and leather bindings. She had come here every week since childhood, finding solace among the whispered pages. Today felt different somehow, as if the books themselves were calling to her with urgent voices. Her fingers traced the spines as she walked deeper into the maze of knowledge, searching for something she couldn't quite name.`;
+interface ReadingPaneProps {
+  content: string;
+  highlightedSentenceIndex: number;
+  chapterTitle?: string;
+  font: string;
+  boldText: boolean;
+  lineSpacing: number;
+  characterSpacing: number;
+  wordSpacing: number;
+  syncedUpToWord?: number;
+  isProgressiveMode?: boolean;
+}
 
-export default function ReadingPaneExample() {
-  const [highlightedIndex, setHighlightedIndex] = useState(2);
+export function ReadingPane({
+  content,
+  highlightedSentenceIndex,
+  chapterTitle,
+  font,
+  boldText,
+  lineSpacing,
+  characterSpacing,
+  wordSpacing,
+  syncedUpToWord,
+  isProgressiveMode,
+}: ReadingPaneProps) {
+  // Split content into sentences
+  const sentences = useMemo(() => {
+    return content
+      .split(/(?<=[.!?])\s+/)
+      .filter((s) => s.trim().length > 0);
+  }, [content]);
 
-  // Simulate auto-progression
-  setTimeout(() => {
-    setHighlightedIndex((prev) => (prev + 1) % 5);
-  }, 3000);
+  // Calculate word positions for progressive mode
+  const wordPositions = useMemo(() => {
+    if (!isProgressiveMode || syncedUpToWord === undefined) return null;
+    
+    let wordCount = 0;
+    const positions: number[] = [];
+    
+    sentences.forEach((sentence) => {
+      positions.push(wordCount);
+      wordCount += sentence.split(/\s+/).length;
+    });
+    
+    return positions;
+  }, [sentences, isProgressiveMode, syncedUpToWord]);
+
+  const getFontFamily = (font: string) => {
+    const fonts: Record<string, string> = {
+      georgia: "Georgia, serif",
+      palatino: "'Palatino Linotype', 'Book Antiqua', Palatino, serif",
+      times: "'Times New Roman', Times, serif",
+      "new-york": "'New York', 'Times New Roman', serif",
+      iowan: "'Iowan Old Style', 'Palatino Linotype', serif",
+      seravek: "Seravek, 'Gill Sans Nova', Ubuntu, Calibri, sans-serif",
+      athelas: "Athelas, Georgia, serif",
+      charter: "Charter, 'Bitstream Charter', 'Sitka Text', Cambria, serif",
+      "sf-pro": "-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif",
+    };
+    return fonts[font] || fonts.georgia;
+  };
 
   return (
-    <div className="h-96">
-      <ReadingPane
-        content={mockContent}
-        highlightedSentenceIndex={highlightedIndex}
-        chapterTitle="Chapter 1: The Discovery"
-      />
+    <div 
+      className="h-full overflow-y-auto px-6 py-8"
+      data-testid="reading-pane"
+    >
+      <div className="max-w-3xl mx-auto">
+        {chapterTitle && (
+          <h2 
+            className="text-2xl font-bold mb-6"
+            data-testid="chapter-title"
+          >
+            {chapterTitle}
+          </h2>
+        )}
+        
+        <div
+          style={{
+            fontFamily: getFontFamily(font),
+            fontWeight: boldText ? 600 : 400,
+            lineHeight: lineSpacing,
+            letterSpacing: `${characterSpacing}em`,
+            wordSpacing: `${wordSpacing}em`,
+          }}
+          className="text-lg"
+        >
+          {sentences.map((sentence, index) => {
+            const isHighlighted = index === highlightedSentenceIndex;
+            const isSynced = wordPositions 
+              ? wordPositions[index] < (syncedUpToWord || 0)
+              : true;
+            const isUnsynced = isProgressiveMode && !isSynced;
+
+            return (
+              <span
+                key={index}
+                className={`
+                  ${isHighlighted ? "bg-reading-highlight text-reading-foreground" : ""}
+                  ${isUnsynced ? "opacity-30" : ""}
+                  transition-all duration-200
+                `}
+                data-testid={`sentence-${index}`}
+              >
+                {sentence}{" "}
+              </span>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
