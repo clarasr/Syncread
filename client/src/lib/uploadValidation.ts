@@ -26,7 +26,7 @@ const RULES: Record<UploadKind, UploadRule> = {
       "audio/x-wav",
       "audio/ogg",
     ],
-    maxSizeMb: 500,
+    maxSizeMb: 1024,
   },
 };
 
