@@ -161,12 +161,12 @@ async function extractChunksWithDuration(
   while (currentTime < totalDuration) {
     const remainingTime = totalDuration - currentTime;
     
-    // For M4B files: make first chunk small (2 min) for quick start, then use standard duration
-    // This allows users to start reading in ~2-4 minutes while the rest processes
+    // For M4B files: make first chunk TINY (30 sec) for instant verification, then use standard duration
+    // This allows users to see the sync feature working in ~30-60 seconds
     let targetDuration = chunkDuration;
     if (isM4B && chunkIndex === 0) {
-      targetDuration = Math.min(120, chunkDuration); // First chunk: 2 minutes
-      console.log(`M4B first chunk: using ${targetDuration}s for quick start`);
+      targetDuration = 30; // First chunk: just 30 seconds for proof-of-concept
+      console.log(`M4B first chunk: using ${targetDuration}s for quick verification`);
     }
     
     const actualDuration = Math.min(targetDuration, remainingTime);
