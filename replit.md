@@ -28,6 +28,48 @@ The backend is built with Express.js and Node.js, using Drizzle ORM for PostgreS
 
 Sync sessions track progress through `pending`, `processing`, `paused`, `complete`, or `error` states, with retry functionality and robust user ownership verification for all data access.
 
+## Recent Updates (November 3, 2025)
+
+### Sync Session Management (COMPLETED - November 3, 2025)
+
+**DELETE Endpoint for Sync Sessions:**
+- Added DELETE endpoint `/api/sync-sessions/:id` in server/routes.ts
+- Implemented `deleteSyncSession` method in both MemStorage and DbStorage
+- Proper user ownership verification before deletion
+- Cascade deletion already handled by existing delete methods for EPUBs and audiobooks
+
+**Library UI Enhancements:**
+- Added "Sync Sessions" section to Library.tsx displaying all user's sync sessions
+- Shows session details: EPUB title, audiobook title, status, sync mode, and current step
+- Color-coded status badges (pending, processing, paused, complete, error)
+- "Open" button for completed sessions to directly access the reader
+- Delete button with confirmation dialog for removing unwanted sessions
+- Proper loading states and empty states
+
+**Impact:** Users can now view and manage all their sync sessions in one place, and delete old/failed progressive sync sessions that were causing issues
+
+### Known Issues (November 3, 2025)
+
+**FFmpeg Timeout Issue with M4B Files:**
+- **Problem:** FFmpeg hangs/times out at 6:39.85 when extracting segments from large M4B audiobook files
+- **Context:** User's 24-hour, 750MB, 82-chapter M4B file triggers consistent timeouts during audio chunking
+- **Current Status:** Under investigation - may be related to M4B format handling or file size
+- **Workaround:** None currently - full sync mode is recommended but still affected
+- **Next Steps:** Need to investigate FFmpeg command parameters for M4B files and consider alternative chunking strategies
+
+**Progressive Sync Session Cleanup:**
+- **Problem:** Old progressive sync sessions persist in database and cause failures when users try to create new full sync sessions
+- **Root Cause:** Progressive sync mode was default until changed to full sync mode; old sessions remain
+- **Impact:** Users must manually delete old progressive sessions before creating new full sync sessions
+- **Solution Implemented:** Added sync session management UI to Library for easy deletion
+- **Recommendation:** Users should delete old progressive sync sessions using the new Library UI
+
+**Sync Mode Change:**
+- Changed default sync mode from "progressive" to "full" to fix performance issues
+- Progressive mode was repeatedly downloading 750MB audio file instead of processing in chunks
+- Full mode downloads once and processes in 15-20 minutes vs hours with progressive mode
+- Users with existing progressive sessions should delete them and create new full sync sessions
+
 ## Recent Updates (October 19, 2025)
 
 ### Code Quality Improvements (COMPLETED - October 19, 2025)
