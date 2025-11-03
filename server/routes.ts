@@ -716,7 +716,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create sync session and start processing (requires authentication)
   app.post("/api/sync/create", isAuthenticated, async (req: any, res) => {
     try {
-      const { epubId, audioId, syncMode = "progressive", wordChunkSize = 1000 } = req.body;
+      const { epubId, audioId, syncMode = "full", wordChunkSize = 1000 } = req.body;
 
       if (!epubId || !audioId) {
         return res.status(400).json({ error: "Missing epubId or audioId" });
