@@ -1010,6 +1010,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete sync session (requires authentication)
+  app.delete("/api/sync/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const sessionId = req.params.id;
+      const userId = req.user.claims.sub;
+
+      const session = await storage.getSyncSession(sessionId);
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+
+      // Verify ownership
+      if (session.userId !== userId) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+
+      // Delete the session
+      await storage.deleteSyncSession(sessionId);
+
+      res.json({ 
+        success: true, 
+        message: "Sync session deleted",
+      });
+    } catch (error: any) {
+      console.error("Sync delete error:", error);
+      res.status(500).json({ error: error.message || "Failed to delete sync session" });
+    }
+  });
+
   // Get EPUB by ID (requires authentication)
   app.get("/api/epub/:id", isAuthenticated, async (req, res) => {
     try {

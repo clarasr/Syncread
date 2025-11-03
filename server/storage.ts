@@ -46,6 +46,7 @@ export interface IStorage {
   updateSyncSession(id: string, updates: Partial<SyncSession>): Promise<SyncSession | undefined>;
   getSyncSessionByFiles(epubId: string, audioId: string, userId: string): Promise<SyncSession | undefined>;
   getUserSyncSessions(userId: string): Promise<SyncSession[]>;
+  deleteSyncSession(id: string): Promise<void>;
   deleteSyncSessionsByEpub(epubId: string): Promise<void>;
   deleteSyncSessionsByAudiobook(audioId: string): Promise<void>;
 }
@@ -263,6 +264,10 @@ export class MemStorage implements IStorage {
     return Array.from(this.syncSessions.values()).filter(
       (session) => session.userId === userId
     );
+  }
+
+  async deleteSyncSession(id: string): Promise<void> {
+    this.syncSessions.delete(id);
   }
 
   async deleteSyncSessionsByEpub(epubId: string): Promise<void> {
@@ -498,6 +503,10 @@ export class DbStorage implements IStorage {
 
   async getUserSyncSessions(userId: string): Promise<SyncSession[]> {
     return await db.select().from(syncSessions).where(eq(syncSessions.userId, userId));
+  }
+
+  async deleteSyncSession(id: string): Promise<void> {
+    await db.delete(syncSessions).where(eq(syncSessions.id, id));
   }
 
   async deleteSyncSessionsByEpub(epubId: string): Promise<void> {
