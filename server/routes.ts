@@ -772,6 +772,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get user's sync sessions (alternate endpoint for Library UI)
+  app.get("/api/sync-sessions", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const sessions = await storage.getUserSyncSessions(userId);
+      res.json(sessions);
+    } catch (error: any) {
+      console.error("Error fetching user sync sessions:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch sync sessions" });
+    }
+  });
+
+  // Delete sync session (requires authentication)
+  app.delete("/api/sync-sessions/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const sessionId = req.params.id;
+      const userId = req.user.claims.sub;
+
+      // Load the session to verify ownership
+      const session = await storage.getSyncSession(sessionId);
+      if (!session) {
+        return res.status(404).json({ error: "Sync session not found" });
+      }
+
+      // Verify ownership
+      if (session.userId !== userId) {
+        return res.status(403).json({ error: "Not authorized to delete this sync session" });
+      }
+
+      // Delete the session
+      await storage.deleteSyncSession(sessionId);
+
+      res.status(204).send();
+    } catch (error: any) {
+      console.error("Error deleting sync session:", error);
+      res.status(500).json({ error: error.message || "Failed to delete sync session" });
+    }
+  });
+
   // Retry a failed sync session (requires authentication)
   app.post("/api/sync/:id/retry", isAuthenticated, async (req: any, res) => {
     try {
