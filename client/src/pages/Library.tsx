@@ -174,8 +174,13 @@ export default function Library() {
       });
       
       setLocation(`/reader?session=${response.id}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Sync failed:", error);
+      toast({
+        variant: "destructive",
+        title: "Sync failed",
+        description: error.message || "Failed to start sync process",
+      });
     }
   };
 
