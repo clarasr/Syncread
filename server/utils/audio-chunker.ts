@@ -346,6 +346,10 @@ async function extractAudioSegment(
     ? outputPath.replace(/\.[^.]+$/, '.mp3')
     : outputPath;
   
+  // Re-encoding M4B files is CPU-intensive and takes longer than codec copy
+  // Allow up to 10 minutes for re-encoding a 10-minute chunk
+  const timeout = isM4B ? 600000 : 120000; // 10 min for M4B, 2 min for others
+  
   // Use execFile with argument array to prevent command injection
   // Note: -ss before -i does input seeking (faster), -ss after -i does output seeking (slower but more accurate)
   // For chunking, we want fast input seeking
@@ -356,7 +360,10 @@ async function extractAudioSegment(
     ...audioCodecArgs,
     "-y",
     finalOutputPath
-  ]);
+  ], {
+    timeout,
+    maxBuffer: 50 * 1024 * 1024, // 50MB buffer for large stderr output
+  });
   
   return finalOutputPath;
 }
