@@ -147,6 +147,7 @@ async function extractChunksWithDuration(
   useObjectStorage: boolean
 ): Promise<AudioChunk[]> {
   const originalExt = path.extname(audioFilePath) || ".mp3";
+  const isM4B = originalExt.toLowerCase() === '.m4b';
   const chunks: AudioChunk[] = [];
   let currentTime = 0;
   let chunkIndex = 0;
@@ -159,7 +160,16 @@ async function extractChunksWithDuration(
 
   while (currentTime < totalDuration) {
     const remainingTime = totalDuration - currentTime;
-    const actualDuration = Math.min(chunkDuration, remainingTime);
+    
+    // For M4B files: make first chunk small (2 min) for quick start, then use standard duration
+    // This allows users to start reading in ~2-4 minutes while the rest processes
+    let targetDuration = chunkDuration;
+    if (isM4B && chunkIndex === 0) {
+      targetDuration = Math.min(120, chunkDuration); // First chunk: 2 minutes
+      console.log(`M4B first chunk: using ${targetDuration}s for quick start`);
+    }
+    
+    const actualDuration = Math.min(targetDuration, remainingTime);
     const localChunkPath = path.join(tempDir, `chunk_${chunkIndex}${originalExt}`);
 
     const actualOutputPath = await extractAudioSegment(audioFilePath, localChunkPath, currentTime, actualDuration);
@@ -347,8 +357,8 @@ async function extractAudioSegment(
     : outputPath;
   
   // Re-encoding M4B files is CPU-intensive and takes longer than codec copy
-  // Allow up to 10 minutes for re-encoding a 10-minute chunk
-  const timeout = isM4B ? 600000 : 120000; // 10 min for M4B, 2 min for others
+  // Allow roughly 1 minute of processing per 1 minute of audio (generous buffer)
+  const timeout = isM4B ? (duration * 1000) + 120000 : 120000; // For M4B: duration + 2min buffer, others: 2 min
   
   // Use execFile with argument array to prevent command injection
   // Note: -ss before -i does input seeking (faster), -ss after -i does output seeking (slower but more accurate)
