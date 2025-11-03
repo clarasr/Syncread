@@ -162,16 +162,16 @@ async function extractChunksWithDuration(
     const actualDuration = Math.min(chunkDuration, remainingTime);
     const localChunkPath = path.join(tempDir, `chunk_${chunkIndex}${originalExt}`);
 
-    await extractAudioSegment(audioFilePath, localChunkPath, currentTime, actualDuration);
+    const actualOutputPath = await extractAudioSegment(audioFilePath, localChunkPath, currentTime, actualDuration);
 
-    const chunkSize = fs.statSync(localChunkPath).size;
+    const chunkSize = fs.statSync(actualOutputPath).size;
     
     // Validate chunk size
     if (chunkSize > MAX_CHUNK_SIZE) {
       throw new Error(`Chunk ${chunkIndex} size (${chunkSize}) exceeds limit (${MAX_CHUNK_SIZE})`);
     }
     
-    let finalPath = localChunkPath;
+    let finalPath = actualOutputPath;
     let isObjectStorage = false;
 
     // Upload to Object Storage if enabled
@@ -179,17 +179,19 @@ async function extractChunksWithDuration(
       try {
         const objectStorageService = new ObjectStorageService();
         const privateDir = objectStorageService.getPrivateObjectDir();
-        const objectPath = `${privateDir}/temp_chunks/${uniqueId}/chunk_${chunkIndex}${originalExt}`;
+        // Use the actual output extension (may be .mp3 for M4B files)
+        const actualExt = path.extname(actualOutputPath);
+        const objectPath = `${privateDir}/temp_chunks/${uniqueId}/chunk_${chunkIndex}${actualExt}`;
         
         // Upload to Object Storage
         const file = await objectStorageService.getObjectEntityFile(objectPath);
-        await file.save(fs.readFileSync(localChunkPath));
+        await file.save(fs.readFileSync(actualOutputPath));
         
         finalPath = objectPath;
         isObjectStorage = true;
         
         // Delete local file after upload
-        fs.unlinkSync(localChunkPath);
+        fs.unlinkSync(actualOutputPath);
       } catch (error) {
         console.warn(`Failed to upload chunk to Object Storage, using local: ${error}`);
         // Keep local path if upload fails
@@ -245,13 +247,13 @@ async function extractChunksIteratively(
   while (true) {
     const localChunkPath = path.join(tempDir, `chunk_${chunkIndex}${originalExt}`);
 
-    await extractAudioSegment(audioFilePath, localChunkPath, currentTime, CHUNK_DURATION);
+    const actualOutputPath = await extractAudioSegment(audioFilePath, localChunkPath, currentTime, CHUNK_DURATION);
 
-    const chunkSize = fs.statSync(localChunkPath).size;
+    const chunkSize = fs.statSync(actualOutputPath).size;
     
     // Stop if chunk is empty or very small (reached end of audio)
     if (chunkSize < MIN_CHUNK_SIZE) {
-      fs.unlinkSync(localChunkPath); // Remove empty chunk
+      fs.unlinkSync(actualOutputPath); // Remove empty chunk
       break;
     }
     
@@ -260,7 +262,7 @@ async function extractChunksIteratively(
       throw new Error(`Chunk ${chunkIndex} size (${chunkSize}) exceeds limit (${MAX_CHUNK_SIZE})`);
     }
     
-    let finalPath = localChunkPath;
+    let finalPath = actualOutputPath;
     let isObjectStorage = false;
 
     // Upload to Object Storage if enabled
@@ -268,17 +270,19 @@ async function extractChunksIteratively(
       try {
         const objectStorageService = new ObjectStorageService();
         const privateDir = objectStorageService.getPrivateObjectDir();
-        const objectPath = `${privateDir}/temp_chunks/${uniqueId}/chunk_${chunkIndex}${originalExt}`;
+        // Use the actual output extension (may be .mp3 for M4B files)
+        const actualExt = path.extname(actualOutputPath);
+        const objectPath = `${privateDir}/temp_chunks/${uniqueId}/chunk_${chunkIndex}${actualExt}`;
         
         // Upload to Object Storage
         const file = await objectStorageService.getObjectEntityFile(objectPath);
-        await file.save(fs.readFileSync(localChunkPath));
+        await file.save(fs.readFileSync(actualOutputPath));
         
         finalPath = objectPath;
         isObjectStorage = true;
         
         // Delete local file after upload
-        fs.unlinkSync(localChunkPath);
+        fs.unlinkSync(actualOutputPath);
       } catch (error) {
         console.warn(`Failed to upload chunk to Object Storage, using local: ${error}`);
         // Keep local path if upload fails
@@ -319,13 +323,29 @@ async function extractChunksIteratively(
 /**
  * Extract a segment of audio using ffmpeg (safe from command injection)
  * Important: -ss before -i is faster and more accurate for seeking
+ * M4B files require re-encoding instead of codec copy
+ * @returns The actual output path (may differ from requested path if re-encoding changes extension)
  */
 async function extractAudioSegment(
   inputPath: string,
   outputPath: string,
   startTime: number,
   duration: number
-): Promise<void> {
+): Promise<string> {
+  const inputExt = path.extname(inputPath).toLowerCase();
+  const isM4B = inputExt === '.m4b';
+  
+  // M4B files often have codecs/metadata that can't be copied directly
+  // Re-encode to MP3 for Whisper API compatibility
+  const audioCodecArgs = isM4B 
+    ? ["-acodec", "libmp3lame", "-b:a", "128k"] 
+    : ["-acodec", "copy"];
+  
+  // For M4B files, change output extension to .mp3
+  const finalOutputPath = isM4B 
+    ? outputPath.replace(/\.[^.]+$/, '.mp3')
+    : outputPath;
+  
   // Use execFile with argument array to prevent command injection
   // Note: -ss before -i does input seeking (faster), -ss after -i does output seeking (slower but more accurate)
   // For chunking, we want fast input seeking
@@ -333,10 +353,12 @@ async function extractAudioSegment(
     "-ss", startTime.toString(),
     "-i", inputPath,
     "-t", duration.toString(),
-    "-acodec", "copy",
+    ...audioCodecArgs,
     "-y",
-    outputPath
+    finalOutputPath
   ]);
+  
+  return finalOutputPath;
 }
 
 /**

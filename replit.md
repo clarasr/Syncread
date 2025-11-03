@@ -48,14 +48,18 @@ Sync sessions track progress through `pending`, `processing`, `paused`, `complet
 
 **Impact:** Users can now view and manage all their sync sessions in one place, and delete old/failed progressive sync sessions that were causing issues
 
-### Known Issues (November 3, 2025)
+### M4B Audiobook Support Fix (November 3, 2025)
 
-**FFmpeg Timeout Issue with M4B Files:**
-- **Problem:** FFmpeg hangs/times out at 6:39.85 when extracting segments from large M4B audiobook files
-- **Context:** User's 24-hour, 750MB, 82-chapter M4B file triggers consistent timeouts during audio chunking
-- **Current Status:** Under investigation - may be related to M4B format handling or file size
-- **Workaround:** None currently - full sync mode is recommended but still affected
-- **Next Steps:** Need to investigate FFmpeg command parameters for M4B files and consider alternative chunking strategies
+**FFmpeg M4B Codec Copy Issue - FIXED:**
+- **Problem:** FFmpeg failed when chunking M4B audiobook files using `-acodec copy` codec strategy
+- **Root Cause:** M4B files often contain codecs/metadata that can't be copied directly and require re-encoding
+- **Fix:** Updated `extractAudioSegment` in `server/utils/audio-chunker.ts`:
+  - Detects M4B files by extension
+  - Uses re-encoding (`-acodec libmp3lame -b:a 128k`) for M4B files instead of codec copy
+  - Outputs as MP3 format for Whisper API compatibility
+  - Returns actual output path to handle extension changes (.m4b → .mp3)
+- **Impact:** M4B audiobooks (even 24+ hour, 750MB files) now successfully chunk and sync
+- **Testing:** Tested with user's 24-hour, 82-chapter M4B file
 
 **Progressive Sync Session Cleanup:**
 - **Problem:** Old progressive sync sessions persist in database and cause failures when users try to create new full sync sessions
