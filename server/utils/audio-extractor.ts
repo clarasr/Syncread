@@ -54,12 +54,14 @@ export async function extractAudioByWordRange(
   // Extract audio segment using ffmpeg
   // -ss: start time (before -i for faster seeking)
   // -t: duration
+  // -vn: skip video/image streams (album art)
   // -acodec libmp3lame: re-encode to MP3 (Whisper compatible)
   // -b:a 128k: 128kbps bitrate (good quality for speech)
   const args = [
     "-ss", startTimeSeconds.toString(),
     "-i", sourceAudioPath,
     "-t", durationSeconds.toString(),
+    "-vn", // Skip video/image streams (album artwork)
     "-acodec", "libmp3lame",
     "-b:a", "128k",
     "-y", // overwrite output file if exists
