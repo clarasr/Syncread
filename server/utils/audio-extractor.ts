@@ -67,7 +67,11 @@ export async function extractAudioByWordRange(
   ];
 
   try {
-    await execFileAsync("ffmpeg", args);
+    // M4B re-encoding can be slow (e.g., 0.84x real-time)
+    // Allow generous timeout: 2 minutes per minute of audio
+    const timeoutMs = Math.max(60000, (durationSeconds / 60) * 2 * 60 * 1000);
+    
+    await execFileAsync("ffmpeg", args, { timeout: timeoutMs, maxBuffer: 50 * 1024 * 1024 });
     
     return {
       filePath: outputPath,
