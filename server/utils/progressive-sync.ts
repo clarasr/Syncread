@@ -216,9 +216,10 @@ export async function startProgressiveSync(sessionId: string): Promise<boolean> 
     currentStep: "transcribing",
   });
 
-  // Get the configured chunk size (default 1000 words)
-  const chunkSize = session.wordChunkSize || 1000;
+  // Use a smaller first chunk for quick verification (30 seconds = ~75 words at 150 WPM)
+  // This allows users to start reading quickly instead of waiting for full chunk processing
+  const FIRST_CHUNK_SIZE = 75; // 30 seconds of audio at 150 WPM
 
-  // Sync the first chunk
-  return await syncWordChunk(sessionId, 0, chunkSize);
+  // Sync the first chunk with the smaller size
+  return await syncWordChunk(sessionId, 0, FIRST_CHUNK_SIZE);
 }
