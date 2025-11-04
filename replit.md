@@ -12,7 +12,14 @@ Preferred communication style: Simple, everyday language.
 
 The application uses a React-TypeScript frontend with Vite, TanStack Query, Wouter, and Tailwind CSS (shadcn/ui), inspired by Apple Books for a mobile-first, content-centric design. It features a theme system with 6 presets, light/dark modes, and extensive typography customization. Preferences are persisted in `localStorage`.
 
-The backend is built with Express.js and Node.js, utilizing Drizzle ORM with a PostgreSQL database (Neon). Authentication is handled via Replit Auth (OpenID Connect). File storage leverages Replit Object Storage with presigned URLs for secure access. The system supports progressive syncing, processing content in 1000-word chunks on-demand for quick session starts.
+The backend is built with Express.js and Node.js, utilizing Drizzle ORM with a PostgreSQL database (Neon). Authentication is handled via Replit Auth (OpenID Connect). File storage leverages Replit Object Storage with presigned URLs for secure access. 
+
+**Sync Mode (Updated Nov 3, 2025):**
+- **Default: PROGRESSIVE SYNC** - Only processes audio chunks as user reads (cost-effective for long audiobooks)
+- First chunk: 30 seconds (processes in ~30-60 seconds for quick verification)
+- Subsequent chunks: Processed on-demand as user progresses through the book
+- M4B files: Automatically re-encoded to MP3 with smart chunking strategy
+- Full sync mode available via API parameter but not recommended for 24+ hour audiobooks
 
 **Core Data Processing Pipeline:**
 
