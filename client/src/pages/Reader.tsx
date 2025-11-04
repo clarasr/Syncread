@@ -365,6 +365,47 @@ export default function Reader() {
     }
   }, [volume]);
 
+  // Calculate highlighted sentence based on current audio time and sync anchors
+  useEffect(() => {
+    if (!session?.syncAnchors || !epub?.textContent || session.syncAnchors.length === 0) {
+      setHighlightedSentence(0);
+      return;
+    }
+
+    // Find the text index corresponding to current audio time
+    const anchors = session.syncAnchors;
+    let textIndex = 0;
+
+    // Find the last anchor before or at current time
+    for (let i = anchors.length - 1; i >= 0; i--) {
+      if (anchors[i].audioTime <= currentTime) {
+        textIndex = anchors[i].textIndex;
+        break;
+      }
+    }
+
+    // Update current text index for progressive sync advance
+    setCurrentTextIndex(textIndex);
+
+    // Split content into sentences to find which sentence contains this text index
+    const sentences = epub.textContent
+      .split(/(?<=[.!?])\s+/)
+      .filter((s) => s.trim().length > 0);
+
+    let charCount = 0;
+    let sentenceIndex = 0;
+
+    for (let i = 0; i < sentences.length; i++) {
+      charCount += sentences[i].length + 1; // +1 for space
+      if (charCount > textIndex) {
+        sentenceIndex = i;
+        break;
+      }
+    }
+
+    setHighlightedSentence(sentenceIndex);
+  }, [currentTime, session?.syncAnchors, epub?.textContent]);
+
   const handleSkipBack = () => {
     if (audioRef.current) {
       audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 15);
