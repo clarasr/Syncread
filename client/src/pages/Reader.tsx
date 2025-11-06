@@ -635,49 +635,21 @@ export default function Reader() {
         </div>
       </div>
 
-      {/* Reading Pane - Use formatted view when available */}
+      {/* Reading Pane - Use text-only view for highlighting during sync */}
       <div className="flex-1 overflow-hidden">
         {epub && canRead ? (
-          epub.htmlChapters && epub.htmlChapters.length > 0 ? (
-            isPaginatedMode ? (
-              <PaginatedHtmlRenderer
-                html={epub.htmlChapters.map(ch => ch.html).join('\n')}
-                css={epub.htmlChapters.map(ch => ch.css || '').join('\n')}
-                font={typographySettings.font}
-                boldText={typographySettings.boldText}
-                lineSpacing={typographySettings.lineSpacing}
-                characterSpacing={typographySettings.characterSpacing}
-                wordSpacing={typographySettings.wordSpacing}
-                selectedTheme={selectedTheme}
-                isDarkMode={isDarkMode}
-              />
-            ) : (
-              <HtmlRenderer
-                html={epub.htmlChapters.map(ch => ch.html).join('\n')}
-                css={epub.htmlChapters.map(ch => ch.css || '').join('\n')}
-                font={typographySettings.font}
-                boldText={typographySettings.boldText}
-                lineSpacing={typographySettings.lineSpacing}
-                characterSpacing={typographySettings.characterSpacing}
-                wordSpacing={typographySettings.wordSpacing}
-                selectedTheme={selectedTheme}
-                isDarkMode={isDarkMode}
-              />
-            )
-          ) : (
-            <ReadingPane
-              content={epub.textContent}
-              highlightedSentenceIndex={highlightedSentence}
-              chapterTitle={epub.chapters?.[0]?.title}
-              font={typographySettings.font}
-              boldText={typographySettings.boldText}
-              lineSpacing={typographySettings.lineSpacing}
-              characterSpacing={typographySettings.characterSpacing}
-              wordSpacing={typographySettings.wordSpacing}
-              syncedUpToWord={session.syncedUpToWord ?? undefined}
-              isProgressiveMode={session.syncMode === "progressive"}
-            />
-          )
+          <ReadingPane
+            content={epub.textContent}
+            highlightedSentenceIndex={highlightedSentence}
+            chapterTitle={epub.chapters?.[0]?.title}
+            font={typographySettings.font}
+            boldText={typographySettings.boldText}
+            lineSpacing={typographySettings.lineSpacing}
+            characterSpacing={typographySettings.characterSpacing}
+            wordSpacing={typographySettings.wordSpacing}
+            syncedUpToWord={session.syncedUpToWord ?? undefined}
+            isProgressiveMode={session.syncMode === "progressive"}
+          />
         ) : (
           <div className="h-full flex items-center justify-center">
             <p className="text-muted-foreground">
