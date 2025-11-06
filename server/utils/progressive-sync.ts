@@ -229,11 +229,11 @@ export async function syncWordChunk(
     if (knownAudioStartTime !== undefined) {
       // Use precise time-based extraction
       const estimatedDuration = (actualCount / 150) * 60; // Rough estimate for duration (150 WPM)
-      console.log(`[syncWordChunk] Using known audio start time: ${knownAudioStartTime.toFixed(1)}s`);
+      console.log(`[syncWordChunk] Using known audio start time: ${knownAudioStartTime.toFixed(1)}s, duration: ${estimatedDuration.toFixed(1)}s`);
       audioSegment = await extractAudioByTimeRange(
         audioFilePath,
         knownAudioStartTime,
-        knownAudioStartTime + estimatedDuration,
+        estimatedDuration,  // Pass duration, not end time!
         chunkDir
       );
     } else {
