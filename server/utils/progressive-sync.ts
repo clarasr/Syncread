@@ -220,6 +220,7 @@ export async function syncWordChunk(
     const textSlice = epub.textContent.slice(startCharIndex, endCharIndex);
 
     console.log(`[syncWordChunk] Text slice: ${textSlice.length} characters`);
+    console.log(`[syncWordChunk] Text slice preview: "${textSlice.substring(0, 200)}..."`);
     console.log(`[syncWordChunk] Extracting audio for word range...`);
 
     // Extract audio segment - use known time if available, otherwise estimate from word count
