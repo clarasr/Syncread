@@ -859,6 +859,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // TEST ENDPOINT: Inject hardcoded sync anchors for testing highlighting without Whisper
+  app.post("/api/sync/:id/test-anchors", isAuthenticated, async (req: any, res) => {
+    try {
+      const sessionId = req.params.id;
+      const userId = req.user.claims.sub;
+
+      const session = await storage.getSyncSession(sessionId);
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+
+      if (session.userId !== userId) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+
+      // Create hardcoded sync anchors every 5 seconds starting at 0s
+      // Each anchor maps to roughly 15 words of text
+      const testAnchors = [];
+      for (let i = 0; i < 60; i++) { // 60 anchors = 5 minutes of coverage
+        testAnchors.push({
+          audioTime: i * 5, // Every 5 seconds
+          textIndex: i * 75, // ~15 words per anchor * 5 char average = 75 chars
+          confidence: 1.0
+        });
+      }
+
+      const updatedSession = await storage.updateSyncSession(sessionId, {
+        syncAnchors: testAnchors,
+        status: "complete",
+        progress: 100,
+      });
+
+      console.log(`[TEST] Injected ${testAnchors.length} test anchors for session ${sessionId}`);
+      res.json(updatedSession);
+    } catch (error: any) {
+      console.error("Test anchor injection error:", error);
+      res.status(500).json({ error: error.message || "Failed to inject test anchors" });
+    }
+  });
+
   // Persist playback progress (requires authentication)
   app.post("/api/sync/:id/progress", isAuthenticated, async (req: any, res) => {
     try {
