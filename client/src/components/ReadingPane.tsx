@@ -97,11 +97,11 @@ export function ReadingPane({
             return (
               <span
                 key={index}
-                className={`
-                  ${isHighlighted ? "bg-reading-highlight text-reading-foreground" : ""}
-                  ${isUnsynced ? "opacity-30" : ""}
-                  transition-all duration-200
-                `}
+                style={{
+                  backgroundColor: isHighlighted ? '#ffeb3b' : 'transparent',
+                  opacity: isUnsynced ? 0.3 : 1,
+                  transition: 'all 0.2s'
+                }}
                 data-testid={`sentence-${index}`}
               >
                 {sentence}{" "}
