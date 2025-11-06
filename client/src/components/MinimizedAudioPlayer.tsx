@@ -63,9 +63,9 @@ export function MinimizedAudioPlayer({
         </div>
 
         {/* Minimized Controls */}
-        <button
+        <div
           onClick={() => setIsExpanded(true)}
-          className="flex w-full items-center gap-3 p-3 hover-elevate active-elevate-2"
+          className="flex w-full items-center gap-3 p-3 hover-elevate active-elevate-2 cursor-pointer"
           data-testid="button-expand-player"
         >
           {/* Book Cover Thumbnail */}
@@ -102,7 +102,7 @@ export function MinimizedAudioPlayer({
 
           {/* Expand Icon */}
           <ChevronUp className="h-5 w-5 text-muted-foreground" />
-        </button>
+        </div>
       </div>
     );
   }

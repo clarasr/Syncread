@@ -21,6 +21,7 @@ function Router() {
       ) : (
         <>
           <Route path="/" component={Library} />
+          <Route path="/library" component={Library} />
           <Route path="/reader" component={Reader} />
           <Route path="/epub" component={EpubReader} />
           <Route path="/audiobook" component={AudiobookPlayer} />
