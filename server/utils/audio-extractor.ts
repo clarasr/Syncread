@@ -87,6 +87,58 @@ export async function extractAudioByWordRange(
 }
 
 /**
+ * Extract a specific time range from an audio file (for initial alignment)
+ * @param sourceAudioPath - Path to the source audiobook file
+ * @param startTimeSeconds - Starting time in seconds
+ * @param durationSeconds - Duration in seconds
+ * @param outputDir - Directory to save the extracted segment
+ * @returns AudioSegment with details of the extracted audio
+ */
+export async function extractAudioByTimeRange(
+  sourceAudioPath: string,
+  startTimeSeconds: number,
+  durationSeconds: number,
+  outputDir: string
+): Promise<AudioSegment> {
+  if (startTimeSeconds < 0 || durationSeconds <= 0) {
+    throw new Error(`Invalid time range: start=${startTimeSeconds}, duration=${durationSeconds}`);
+  }
+
+  await fs.mkdir(outputDir, { recursive: true });
+
+  const timestamp = Date.now();
+  const outputFilename = `time_segment_${timestamp}.mp3`;
+  const outputPath = path.join(outputDir, outputFilename);
+
+  const args = [
+    "-ss", startTimeSeconds.toString(),
+    "-i", sourceAudioPath,
+    "-t", durationSeconds.toString(),
+    "-vn",
+    "-acodec", "libmp3lame",
+    "-b:a", "128k",
+    "-y",
+    outputPath
+  ];
+
+  try {
+    const timeoutMs = Math.max(60000, (durationSeconds / 60) * 2 * 60 * 1000);
+    await execFileAsync("ffmpeg", args, { timeout: timeoutMs, maxBuffer: 50 * 1024 * 1024 });
+    
+    const estimatedWords = Math.floor((durationSeconds / 60) * NARRATION_SPEED_WPM);
+    
+    return {
+      filePath: outputPath,
+      startTime: startTimeSeconds,
+      duration: durationSeconds,
+      wordRange: { start: 0, end: estimatedWords }
+    };
+  } catch (error: any) {
+    throw new Error(`Failed to extract audio segment by time: ${error.message}`);
+  }
+}
+
+/**
  * Extract multiple progressive chunks of audio based on word ranges
  * Useful for progressive sync where we sync small chunks on-demand
  */
