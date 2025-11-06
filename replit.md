@@ -4,6 +4,15 @@
 
 SyncRead is a mobile-first web application designed to provide an immersive reading experience by synchronizing EPUB text with audiobook narration. It achieves this by automatically aligning text and audio using AI-powered Whisper transcription and fuzzy text matching. The application allows users to upload and manage EPUB files and audiobooks in an Apple Books-style library, create synchronized reading sessions, and customize their reading experience with themes and typography controls. The core ambition is to offer a seamless and engaging way to consume books through synchronized audio and text.
 
+## Recent Changes
+
+**Nov 6, 2025 - Highlighting CSS Fix:**
+- Added `--reading-highlight` color variable to all 7 theme presets in `client/src/index.css`
+- Light themes (original, paper, calm) use yellow/amber: HSL `48 100% 85-88%`
+- Dark themes (quiet, bold, focus, dark mode) use darker gold: HSL `45 70% 35%`
+- Added `reading` color object to `tailwind.config.ts` to generate `bg-reading-highlight` class
+- ReadingPane component now properly highlights text with visible yellow/amber background as audio plays
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
