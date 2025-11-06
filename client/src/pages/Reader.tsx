@@ -368,6 +368,7 @@ export default function Reader() {
   // Calculate highlighted sentence based on current audio time and sync anchors
   useEffect(() => {
     if (!session?.syncAnchors || !epub?.textContent || session.syncAnchors.length === 0) {
+      console.log('[HIGHLIGHT] No anchors or content available');
       setHighlightedSentence(0);
       return;
     }
@@ -403,6 +404,7 @@ export default function Reader() {
       }
     }
 
+    console.log(`[HIGHLIGHT] currentTime=${currentTime.toFixed(1)}s, textIndex=${textIndex}, sentenceIndex=${sentenceIndex}, anchors=${anchors.length}`);
     setHighlightedSentence(sentenceIndex);
   }, [currentTime, session?.syncAnchors, epub?.textContent]);
 
