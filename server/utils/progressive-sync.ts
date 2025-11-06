@@ -136,12 +136,14 @@ async function findInitialAlignment(
  * @param sessionId - The sync session ID
  * @param wordStart - Starting word index
  * @param wordCount - Number of words to sync
+ * @param knownAudioStartTime - Optional: Known audio time for this word position (from previous anchor)
  * @returns Success status
  */
 export async function syncWordChunk(
   sessionId: string,
   wordStart: number,
-  wordCount: number
+  wordCount: number,
+  knownAudioStartTime?: number
 ): Promise<boolean> {
   // Declare these outside try block so they're accessible in finally for cleanup
   let audioFilePath: string = '';
@@ -213,14 +215,29 @@ export async function syncWordChunk(
     console.log(`[syncWordChunk] Text slice: ${textSlice.length} characters`);
     console.log(`[syncWordChunk] Extracting audio for word range...`);
 
-    // Extract audio segment based on word range
+    // Extract audio segment - use known time if available, otherwise estimate from word count
     const chunkDir = path.join("uploads", `chunks_${sessionId}`);
-    const audioSegment = await extractAudioByWordRange(
-      audioFilePath,
-      actualStart,
-      actualCount,
-      chunkDir
-    );
+    let audioSegment;
+    
+    if (knownAudioStartTime !== undefined) {
+      // Use precise time-based extraction
+      const estimatedDuration = (actualCount / 150) * 60; // Rough estimate for duration (150 WPM)
+      console.log(`[syncWordChunk] Using known audio start time: ${knownAudioStartTime.toFixed(1)}s`);
+      audioSegment = await extractAudioByTimeRange(
+        audioFilePath,
+        knownAudioStartTime,
+        knownAudioStartTime + estimatedDuration,
+        chunkDir
+      );
+    } else {
+      // Fall back to word-based estimation
+      audioSegment = await extractAudioByWordRange(
+        audioFilePath,
+        actualStart,
+        actualCount,
+        chunkDir
+      );
+    }
 
     console.log(`[syncWordChunk] Audio segment extracted: ${audioSegment.startTime.toFixed(1)}s - ${(audioSegment.startTime + audioSegment.duration).toFixed(1)}s`);
 
@@ -401,11 +418,12 @@ export async function startProgressiveSync(sessionId: string): Promise<boolean> 
     
     console.log(`[Progressive Sync] Starting from word ${startWordIndex} (character ${initialAlignment.textIndex})`);
     
-    // Sync from the aligned word position
+    // Sync from the aligned word position using the known audio time
     return await syncWordChunk(
       sessionId, 
       startWordIndex, 
-      FIRST_CHUNK_SIZE
+      FIRST_CHUNK_SIZE,
+      initialAlignment.audioTime // Pass the known audio start time!
     );
   } catch (error: any) {
     console.error(`[Progressive Sync] Error: ${error.message}`);
