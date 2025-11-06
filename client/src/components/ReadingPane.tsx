@@ -94,6 +94,10 @@ export function ReadingPane({
               : true;
             const isUnsynced = isProgressiveMode && !isSynced;
 
+            if (isHighlighted) {
+              console.log(`[READINGPANE] Highlighting sentence ${index}: "${sentence.substring(0, 50)}..."`);
+            }
+
             return (
               <span
                 key={index}
