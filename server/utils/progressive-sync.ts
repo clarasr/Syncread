@@ -198,8 +198,10 @@ export async function syncWordChunk(
     const actualEnd = Math.min(totalWords, wordStart + wordCount);
     const actualCount = actualEnd - actualStart;
 
+    console.log(`[syncWordChunk] Processing words ${actualStart}-${actualEnd} (${actualCount} words) out of ${totalWords} total`);
+
     if (actualCount <= 0) {
-      console.log(`No words to sync: start=${wordStart}, count=${wordCount}, totalWords=${totalWords}`);
+      console.log(`[syncWordChunk] No words to sync: start=${wordStart}, count=${wordCount}, totalWords=${totalWords}`);
       return false;
     }
 
@@ -207,6 +209,9 @@ export async function syncWordChunk(
     const startCharIndex = wordMap[actualStart];
     const endCharIndex = actualEnd < totalWords ? wordMap[actualEnd] : epub.textContent.length;
     const textSlice = epub.textContent.slice(startCharIndex, endCharIndex);
+
+    console.log(`[syncWordChunk] Text slice: ${textSlice.length} characters`);
+    console.log(`[syncWordChunk] Extracting audio for word range...`);
 
     // Extract audio segment based on word range
     const chunkDir = path.join("uploads", `chunks_${sessionId}`);
@@ -217,14 +222,20 @@ export async function syncWordChunk(
       chunkDir
     );
 
+    console.log(`[syncWordChunk] Audio segment extracted: ${audioSegment.startTime.toFixed(1)}s - ${(audioSegment.startTime + audioSegment.duration).toFixed(1)}s`);
+
     // Transcribe the audio segment
+    console.log(`[syncWordChunk] Transcribing audio segment...`);
     const transcription = await transcribeAudioSegment(audioSegment.filePath);
+    console.log(`[syncWordChunk] Transcription: "${transcription.text.substring(0, 100)}..."`);
 
     // Match transcription to text slice
+    console.log(`[syncWordChunk] Finding text matches...`);
     const matches = findTextMatches(textSlice, [{
       text: transcription.text,
       timestamp: audioSegment.startTime,
     }]);
+    console.log(`[syncWordChunk] Found ${matches.length} matches`);
 
     // Adjust matches to global text indices (not slice-relative)
     const adjustedMatches = matches.map(match => ({
