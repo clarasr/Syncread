@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 interface ReadingPaneProps {
   content: string;
-  highlightedSentenceIndex: number;
+  highlightedParagraphIndex: number;
   chapterTitle?: string;
   font: string;
   boldText: boolean;
@@ -15,7 +15,7 @@ interface ReadingPaneProps {
 
 export function ReadingPane({
   content,
-  highlightedSentenceIndex,
+  highlightedParagraphIndex,
   chapterTitle,
   font,
   boldText,
@@ -25,11 +25,11 @@ export function ReadingPane({
   syncedUpToWord,
   isProgressiveMode,
 }: ReadingPaneProps) {
-  // Split content into sentences
-  const sentences = useMemo(() => {
+  // Split content into paragraphs (double newline or single newline)
+  const paragraphs = useMemo(() => {
     return content
-      .split(/(?<=[.!?])\s+/)
-      .filter((s) => s.trim().length > 0);
+      .split(/\n\n+|\n/)
+      .filter((p) => p.trim().length > 0);
   }, [content]);
 
   // Calculate word positions for progressive mode
@@ -39,13 +39,13 @@ export function ReadingPane({
     let wordCount = 0;
     const positions: number[] = [];
     
-    sentences.forEach((sentence) => {
+    paragraphs.forEach((paragraph) => {
       positions.push(wordCount);
-      wordCount += sentence.split(/\s+/).length;
+      wordCount += paragraph.split(/\s+/).length;
     });
     
     return positions;
-  }, [sentences, isProgressiveMode, syncedUpToWord]);
+  }, [paragraphs, isProgressiveMode, syncedUpToWord]);
 
   const getFontFamily = (font: string) => {
     const fonts: Record<string, string> = {
@@ -87,29 +87,28 @@ export function ReadingPane({
           }}
           className="text-lg"
         >
-          {sentences.map((sentence, index) => {
-            const isHighlighted = index === highlightedSentenceIndex;
+          {paragraphs.map((paragraph, index) => {
+            const isHighlighted = index === highlightedParagraphIndex;
             const isSynced = wordPositions 
               ? wordPositions[index] < (syncedUpToWord || 0)
               : true;
             const isUnsynced = isProgressiveMode && !isSynced;
 
-            if (isHighlighted) {
-              console.log(`[READINGPANE] Highlighting sentence ${index}: "${sentence.substring(0, 50)}..."`);
-            }
-
             return (
-              <span
+              <p
                 key={index}
                 style={{
                   backgroundColor: isHighlighted ? '#ffeb3b' : 'transparent',
                   opacity: isUnsynced ? 0.3 : 1,
-                  transition: 'all 0.2s'
+                  transition: 'all 0.2s',
+                  padding: isHighlighted ? '0.5rem' : '0',
+                  borderRadius: isHighlighted ? '0.25rem' : '0',
+                  marginBottom: '1rem'
                 }}
-                data-testid={`sentence-${index}`}
+                data-testid={`paragraph-${index}`}
               >
-                {sentence}{" "}
-              </span>
+                {paragraph}
+              </p>
             );
           })}
         </div>

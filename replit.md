@@ -6,12 +6,16 @@ SyncRead is a mobile-first web application designed to provide an immersive read
 
 ## Recent Changes
 
-**Nov 6, 2025 - Highlighting CSS Fix:**
-- Added `--reading-highlight` color variable to all 7 theme presets in `client/src/index.css`
-- Light themes (original, paper, calm) use yellow/amber: HSL `48 100% 85-88%`
-- Dark themes (quiet, bold, focus, dark mode) use darker gold: HSL `45 70% 35%`
-- Added `reading` color object to `tailwind.config.ts` to generate `bg-reading-highlight` class
-- ReadingPane component now properly highlights text with visible yellow/amber background as audio plays
+**Nov 6, 2025 - ElevenReader-Style UX Improvements:**
+- **Fixed theme colors:** Light mode now has white background (98% lightness), dark mode stays dark (4% lightness)
+- **Paragraph-level highlighting:** Switched from sentence-level to paragraph-level highlighting for smoother, less granular sync (inspired by ElevenReader)
+  - ReadingPane now splits content on newlines (`\n\n+|\n`) instead of sentence boundaries
+  - Paragraphs are highlighted with yellow background and padding for visual emphasis
+  - Removed redundant `/api/sync/:id/position` API polling; client-side calculation now handles all highlighting
+- **Integrated audio player:** Replaced expandable MinimizedAudioPlayer with ElevenReader-style always-visible bottom bar
+  - Clean, compact design with progress slider, time stamps, play/pause, skip ±15s, and speed selector
+  - No minimize/maximize - controls are always accessible without modal overlays
+- **Removed debug code:** Cleaned up test anchor endpoint and console logging
 
 ## User Preferences
 

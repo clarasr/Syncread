@@ -1,7 +1,7 @@
 import { ReadingPane } from "@/components/ReadingPane";
 import { HtmlRenderer } from "@/components/HtmlRenderer";
 import { PaginatedHtmlRenderer } from "@/components/PaginatedHtmlRenderer";
-import { MinimizedAudioPlayer } from "@/components/MinimizedAudioPlayer";
+import { IntegratedAudioPlayer } from "@/components/IntegratedAudioPlayer";
 import { ThemeSelector } from "@/components/ThemeSelector";
 import { TypographyCustomizer } from "@/components/TypographyCustomizer";
 import { ProcessingModal } from "@/components/ProcessingModal";
@@ -32,7 +32,7 @@ export default function Reader() {
   const [currentTime, setCurrentTime] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [volume, setVolume] = useState(1);
-  const [highlightedSentence, setHighlightedSentence] = useState(0);
+  const [highlightedParagraph, setHighlightedParagraph] = useState(0);
   const [currentTextIndex, setCurrentTextIndex] = useState(0);
 
   // Theme state
@@ -186,43 +186,6 @@ export default function Reader() {
     applyStoredPlaybackPosition();
   }, [session?.playbackPositionSec, audiobook?.id]);
 
-  // Throttle position updates to reduce server load
-  const lastPositionUpdateRef = useRef(0);
-  
-  // Update highlighted sentence based on audio time and track current text index (throttled)
-  useEffect(() => {
-    if (!session || !sessionId) return;
-
-    // Allow playback if we have any synced content (progressive mode)
-    const canPlay = session.status === "complete" ||
-                   (session.syncMode === "progressive" && (session.syncedUpToWord || 0) > 0);
-    
-    if (!canPlay) return;
-
-    // Throttle to once per second to reduce server load
-    const now = Date.now();
-    if (now - lastPositionUpdateRef.current < 1000) return;
-    lastPositionUpdateRef.current = now;
-
-    const updatePosition = async () => {
-      try {
-        const response = await apiRequest(
-          `/api/sync/${sessionId}/position?time=${currentTime}`,
-          { method: "GET" }
-        );
-        setHighlightedSentence(response.sentenceIndex);
-        if (response.textIndex !== undefined) {
-          setCurrentTextIndex(response.textIndex);
-        }
-      } catch (error) {
-        console.error("Failed to get position:", error);
-      }
-    };
-
-    if (isPlaying) {
-      updatePosition();
-    }
-  }, [currentTime, isPlaying, session, sessionId]);
 
   useEffect(() => {
     if (!sessionId || !isPlaying) return;
@@ -365,11 +328,10 @@ export default function Reader() {
     }
   }, [volume]);
 
-  // Calculate highlighted sentence based on current audio time and sync anchors
+  // Calculate highlighted paragraph based on current audio time and sync anchors
   useEffect(() => {
     if (!session?.syncAnchors || !epub?.textContent || session.syncAnchors.length === 0) {
-      console.log('[HIGHLIGHT] No anchors or content available');
-      setHighlightedSentence(0);
+      setHighlightedParagraph(0);
       return;
     }
 
@@ -388,24 +350,23 @@ export default function Reader() {
     // Update current text index for progressive sync advance
     setCurrentTextIndex(textIndex);
 
-    // Split content into sentences to find which sentence contains this text index
-    const sentences = epub.textContent
-      .split(/(?<=[.!?])\s+/)
-      .filter((s) => s.trim().length > 0);
+    // Split content into paragraphs to find which paragraph contains this text index
+    const paragraphs = epub.textContent
+      .split(/\n\n+|\n/)
+      .filter((p) => p.trim().length > 0);
 
     let charCount = 0;
-    let sentenceIndex = 0;
+    let paragraphIndex = 0;
 
-    for (let i = 0; i < sentences.length; i++) {
-      charCount += sentences[i].length + 1; // +1 for space
+    for (let i = 0; i < paragraphs.length; i++) {
+      charCount += paragraphs[i].length + 1; // +1 for newline
       if (charCount > textIndex) {
-        sentenceIndex = i;
+        paragraphIndex = i;
         break;
       }
     }
 
-    console.log(`[HIGHLIGHT] currentTime=${currentTime.toFixed(1)}s, textIndex=${textIndex}, sentenceIndex=${sentenceIndex}, anchors=${anchors.length}`);
-    setHighlightedSentence(sentenceIndex);
+    setHighlightedParagraph(paragraphIndex);
   }, [currentTime, session?.syncAnchors, epub?.textContent]);
 
   const handleSkipBack = () => {
@@ -640,7 +601,7 @@ export default function Reader() {
         {epub && canRead ? (
           <ReadingPane
             content={epub.textContent}
-            highlightedSentenceIndex={highlightedSentence}
+            highlightedParagraphIndex={highlightedParagraph}
             chapterTitle={epub.chapters?.[0]?.title}
             font={typographySettings.font}
             boldText={typographySettings.boldText}
@@ -661,20 +622,16 @@ export default function Reader() {
 
       {/* Audio Player - Show when reading is available */}
       {audiobook && canRead && (
-        <MinimizedAudioPlayer
+        <IntegratedAudioPlayer
           isPlaying={isPlaying}
           currentTime={currentTime}
           duration={resolvedDuration}
-          bookTitle={epub?.title || "Unknown"}
-          chapterTitle={epub?.chapters?.[0]?.title || "Chapter 1"}
           playbackSpeed={playbackSpeed}
-          volume={volume}
           onPlayPause={() => setIsPlaying(!isPlaying)}
           onSeek={handleSeek}
           onSkipBack={handleSkipBack}
           onSkipForward={handleSkipForward}
           onSpeedChange={setPlaybackSpeed}
-          onVolumeChange={setVolume}
         />
       )}
         </>
