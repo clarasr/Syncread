@@ -840,8 +840,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: null,
       });
 
-      // Start async processing
-      processSync(sessionId).catch(console.error);
+      // Start async processing based on sync mode
+      if (resetSession.syncMode === "progressive") {
+        const { startProgressiveSync } = await import("./utils/progressive-sync");
+        startProgressiveSync(sessionId).catch(console.error);
+      } else {
+        processSync(sessionId).catch(console.error);
+      }
 
       res.json(resetSession);
     } catch (error: any) {
