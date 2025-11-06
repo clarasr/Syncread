@@ -85,6 +85,12 @@ export default {
           busy: "rgb(239 68 68)",
           offline: "rgb(156 163 175)",
         },
+        reading: {
+          background: "hsl(var(--reading-background) / <alpha-value>)",
+          foreground: "hsl(var(--reading-foreground) / <alpha-value>)",
+          highlight: "hsl(var(--reading-highlight) / <alpha-value>)",
+          secondary: "hsl(var(--reading-secondary) / <alpha-value>)",
+        },
       },
       fontFamily: {
         sans: ["var(--font-sans)"],

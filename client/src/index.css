@@ -17,6 +17,7 @@
   /* Reading Theme: Original */
   --reading-background: 0 0% 100%;
   --reading-foreground: 0 0% 0%;
+  --reading-highlight: 48 100% 88%;
   --reading-secondary: 0 0% 40%;
 
   --background: 0 0% 3.53%;
@@ -135,30 +136,35 @@
 [data-theme="quiet"] {
   --reading-background: 0 0% 25%;
   --reading-foreground: 0 0% 85%;
+  --reading-highlight: 45 70% 35%;
   --reading-secondary: 0 0% 60%;
 }
 
 [data-theme="paper"] {
   --reading-background: 40 20% 96%;
   --reading-foreground: 30 15% 15%;
+  --reading-highlight: 48 100% 85%;
   --reading-secondary: 30 10% 40%;
 }
 
 [data-theme="bold"] {
   --reading-background: 0 0% 0%;
   --reading-foreground: 0 0% 100%;
+  --reading-highlight: 45 70% 35%;
   --reading-secondary: 0 0% 70%;
 }
 
 [data-theme="calm"] {
   --reading-background: 35 30% 92%;
   --reading-foreground: 25 20% 20%;
+  --reading-highlight: 48 100% 85%;
   --reading-secondary: 25 15% 45%;
 }
 
 [data-theme="focus"] {
   --reading-background: 220 15% 12%;
   --reading-foreground: 220 10% 95%;
+  --reading-highlight: 45 70% 35%;
   --reading-secondary: 220 10% 65%;
 }
 
@@ -175,6 +181,7 @@
   /* Dark mode uses Bold theme for reading */
   --reading-background: 0 0% 0%;
   --reading-foreground: 0 0% 100%;
+  --reading-highlight: 45 70% 35%;
   --reading-secondary: 0 0% 70%;
 
   --background: 20 14% 4%;
