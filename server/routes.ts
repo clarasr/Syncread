@@ -840,6 +840,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: null,
       });
 
+      if (!resetSession) {
+        return res.status(500).json({ error: "Failed to reset session" });
+      }
+
       // Start async processing based on sync mode
       if (resetSession.syncMode === "progressive") {
         const { startProgressiveSync } = await import("./utils/progressive-sync");
