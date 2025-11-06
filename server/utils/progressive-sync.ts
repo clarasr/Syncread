@@ -93,6 +93,13 @@ async function findInitialAlignment(
 
     console.log(`[Initial Alignment] Transcription: "${transcription.text.substring(0, 100)}..."`);
     console.log(`[Initial Alignment] Found ${transcription.segments.length} segments from Whisper`);
+    
+    // Log each segment with timestamp for debugging
+    console.log(`[Initial Alignment] Whisper segments:`);
+    transcription.segments.forEach((seg, idx) => {
+      console.log(`  [${idx}] ${seg.start.toFixed(1)}s-${seg.end.toFixed(1)}s: "${seg.text}"`);
+    });
+    
     console.log(`[Initial Alignment] Searching across ${searchText.length} characters (${actualSearchWindow} words)`);
 
     // Try to match each segment individually to find precise audio timestamps
