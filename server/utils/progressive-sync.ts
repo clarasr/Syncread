@@ -215,11 +215,15 @@ export async function syncWordChunk(
     }
 
     // Get character indices for this word range
+    // Include overlap before start for better fuzzy matching context
+    const OVERLAP_WORDS = Math.min(100, actualStart); // Up to 100 words before, but not before the start
+    const overlapStart = actualStart - OVERLAP_WORDS;
+    const overlapStartCharIndex = overlapStart > 0 ? wordMap[overlapStart] : 0;
     const startCharIndex = wordMap[actualStart];
     const endCharIndex = actualEnd < totalWords ? wordMap[actualEnd] : epub.textContent.length;
-    const textSlice = epub.textContent.slice(startCharIndex, endCharIndex);
+    const textSlice = epub.textContent.slice(overlapStartCharIndex, endCharIndex);
 
-    console.log(`[syncWordChunk] Text slice: ${textSlice.length} characters`);
+    console.log(`[syncWordChunk] Text slice: ${textSlice.length} characters (with ${OVERLAP_WORDS}-word overlap before start)`);
     console.log(`[syncWordChunk] Text slice preview: "${textSlice.substring(0, 200)}..."`);
     console.log(`[syncWordChunk] Extracting audio for word range...`);
 
@@ -262,10 +266,10 @@ export async function syncWordChunk(
     }]);
     console.log(`[syncWordChunk] Found ${matches.length} matches`);
 
-    // Adjust matches to global text indices (not slice-relative)
+    // Adjust matches to global text indices (accounting for overlap)
     const adjustedMatches = matches.map(match => ({
       audioTime: match.audioTime,
-      textIndex: match.textIndex + startCharIndex,
+      textIndex: match.textIndex + overlapStartCharIndex,
       confidence: match.confidence,
     }));
 

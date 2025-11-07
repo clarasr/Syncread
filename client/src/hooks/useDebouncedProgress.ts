@@ -13,10 +13,11 @@ export function useDebouncedProgress(
       return;
     }
 
+    const valueToFlush = lastValueRef.current;
+    lastValueRef.current = null; // Clear immediately to prevent retry spam
     isFlushingRef.current = true;
     try {
-      await onFlush(lastValueRef.current);
-      lastValueRef.current = null;
+      await onFlush(valueToFlush);
     } finally {
       isFlushingRef.current = false;
     }

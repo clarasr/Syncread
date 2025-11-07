@@ -1102,6 +1102,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Re-parse EPUB to update textContent with new paragraph structure (requires authentication)
   app.post("/api/epub/:id/reparse", isAuthenticated, async (req: any, res) => {
+    let tempFilePath: string | null = null;
     try {
       const userId = req.user.claims.sub;
       const epubId = req.params.id;
@@ -1116,8 +1117,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Not authorized" });
       }
 
-      // Re-parse the EPUB file
-      const parsed = await parseEpub(epub.objectStoragePath);
+      // Download the EPUB from object storage to a temp file
+      const objectStorageService = new ObjectStorageService();
+      const objectPath = objectStorageService.normalizeObjectEntityPath(epub.objectStoragePath);
+      const objectFile = await objectStorageService.getObjectEntityFile(objectPath);
+      tempFilePath = path.join(uploadDir, `temp-reparse-${Date.now()}-${epub.filename}`);
+
+      // Download to temp location for processing
+      await new Promise<void>((resolve, reject) => {
+        const writeStream = fs.createWriteStream(tempFilePath!);
+        const readStream = objectFile.createReadStream();
+        readStream.pipe(writeStream);
+        writeStream.on('finish', () => resolve());
+        writeStream.on('error', reject);
+        readStream.on('error', reject);
+      });
+
+      // Re-parse the EPUB file from temp location
+      const parsed = await parseEpub(tempFilePath);
 
       // Update the EPUB with new textContent
       const updated = await storage.updateEpubBook(epubId, {
@@ -1130,6 +1147,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("EPUB reparse error:", error);
       res.status(500).json({ error: error.message || "Failed to re-parse EPUB" });
+    } finally {
+      // Clean up temp file
+      if (tempFilePath && fs.existsSync(tempFilePath)) {
+        try {
+          fs.unlinkSync(tempFilePath);
+        } catch (cleanupError) {
+          console.error("Failed to clean up temp file:", cleanupError);
+        }
+      }
     }
   });
 
