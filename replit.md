@@ -6,6 +6,17 @@ SyncRead is a mobile-first web application designed to provide an immersive read
 
 ## Recent Changes
 
+**Nov 7, 2025 - Critical Bug Fixes:**
+- **Fixed EPUB reparse endpoint:** Downloads EPUB from object storage to temp file before parsing
+  - Mirrors the upload flow pattern with proper cleanup in finally block
+  - Restores reparse functionality for EPUBs stored in object storage
+- **Fixed progress polling retry spam:** Clear buffered value immediately in `useDebouncedProgress` hook
+  - Prevents rapid retry loop when API call fails (e.g., during "processing" status)
+  - Progress persistence continues to work even during long sync sessions
+- **Fixed progressive sync chunk matching:** Added 100-word overlap context to text windows
+  - Provides fuzzy matcher with enough context to find matches at chunk boundaries
+  - Resolves chunk 2 matching failures when boundary splits mid-sentence
+
 **Nov 7, 2025 - Real-Time Paragraph Highlighting & Progress Polling Fixes:**
 - **Fixed paragraph highlighting timing:** Switched from using last passed anchor to linear interpolation
   - Highlighting now moves to next paragraph BEFORE voice finishes reading it (predictive vs reactive)
