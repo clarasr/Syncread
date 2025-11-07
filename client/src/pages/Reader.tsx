@@ -377,18 +377,27 @@ export default function Reader() {
     // Update current text index for progressive sync advance
     setCurrentTextIndex(textIndex);
 
-    // Split content into paragraphs to find which paragraph contains this text index
-    const paragraphs = epub.textContent
-      .split(/\n\n+|\n/)
-      .filter((p) => p.trim().length > 0);
+    // Find paragraph boundaries in the original text (don't split - preserve exact positions)
+    const text = epub.textContent;
+    const paragraphStarts: number[] = [0];
+    
+    // Find all paragraph breaks (double newline or single newline)
+    const regex = /\n\n+|\n/g;
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const nextStart = match.index + match[0].length;
+      // Only add if there's non-whitespace content after this break
+      if (nextStart < text.length && text.slice(nextStart).trim().length > 0) {
+        paragraphStarts.push(nextStart);
+      }
+    }
 
-    let charCount = 0;
+    // Find which paragraph contains textIndex
     let paragraphIndex = 0;
-
-    for (let i = 0; i < paragraphs.length; i++) {
-      charCount += paragraphs[i].length + 1; // +1 for newline
-      if (charCount > textIndex) {
+    for (let i = 0; i < paragraphStarts.length; i++) {
+      if (textIndex >= paragraphStarts[i]) {
         paragraphIndex = i;
+      } else {
         break;
       }
     }
