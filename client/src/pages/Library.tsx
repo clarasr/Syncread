@@ -299,6 +299,22 @@ export default function Library() {
                                 Edit Title
                               </DropdownMenuItem>
                               <DropdownMenuItem
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  try {
+                                    await apiRequest(`/api/epub/${epub.id}/reparse`, { method: "POST" });
+                                    await queryClient.invalidateQueries({ queryKey: ["/api/library/epubs"] });
+                                    toast({ title: "EPUB refreshed with paragraph breaks!" });
+                                  } catch (error: any) {
+                                    toast({ title: "Failed to refresh", description: error.message, variant: "destructive" });
+                                  }
+                                }}
+                                data-testid={`button-reparse-epub-${epub.id}`}
+                              >
+                                <RefreshCw className="h-4 w-4 mr-2" />
+                                Refresh Paragraphs
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setDeleteDialog({

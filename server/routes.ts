@@ -1100,6 +1100,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Re-parse EPUB to update textContent with new paragraph structure (requires authentication)
+  app.post("/api/epub/:id/reparse", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const epubId = req.params.id;
+
+      const epub = await storage.getEpubBook(epubId);
+      if (!epub) {
+        return res.status(404).json({ error: "EPUB not found" });
+      }
+
+      // Verify ownership
+      if (epub.userId !== userId) {
+        return res.status(403).json({ error: "Not authorized" });
+      }
+
+      // Re-parse the EPUB file
+      const parsed = await parseEpub(epub.objectStoragePath);
+
+      // Update the EPUB with new textContent
+      const updated = await storage.updateEpubBook(epubId, {
+        textContent: parsed.textContent,
+        chapters: parsed.chapters,
+        htmlChapters: parsed.htmlChapters,
+      });
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error("EPUB reparse error:", error);
+      res.status(500).json({ error: error.message || "Failed to re-parse EPUB" });
+    }
+  });
+
   // Get audiobook by ID (requires authentication)
   app.get("/api/audiobook/:id", isAuthenticated, async (req, res) => {
     try {

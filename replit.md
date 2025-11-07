@@ -6,10 +6,19 @@ SyncRead is a mobile-first web application designed to provide an immersive read
 
 ## Recent Changes
 
+**Nov 7, 2025 - Paragraph Highlighting Fix:**
+- **Fixed EPUB parser:** Updated `epub-parser.ts` to preserve paragraph boundaries when extracting text
+  - Now extracts text from `<p>` tags and joins with double newlines (`\n\n`)
+  - Fallback logic replaces block-level HTML elements with paragraph breaks
+  - Prevents all text from being collapsed into a single paragraph
+- **Added re-parse feature:** New API endpoint `/api/epub/:id/reparse` to refresh existing EPUBs
+  - Library UI now has "Refresh Paragraphs" option in EPUB dropdown menu
+  - Allows updating old EPUBs without re-uploading
+
 **Nov 6, 2025 - ElevenReader-Style UX Improvements:**
 - **Fixed theme colors:** Light mode now has white background (98% lightness), dark mode stays dark (4% lightness)
 - **Paragraph-level highlighting:** Switched from sentence-level to paragraph-level highlighting for smoother, less granular sync (inspired by ElevenReader)
-  - ReadingPane now splits content on newlines (`\n\n+|\n`) instead of sentence boundaries
+  - ReadingPane splits content on newlines (`\n\n+|\n`) instead of sentence boundaries
   - Paragraphs are highlighted with yellow background and padding for visual emphasis
   - Removed redundant `/api/sync/:id/position` API polling; client-side calculation now handles all highlighting
 - **Integrated audio player:** Replaced expandable MinimizedAudioPlayer with ElevenReader-style always-visible bottom bar

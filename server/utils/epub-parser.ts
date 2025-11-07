@@ -157,10 +157,40 @@ export async function parseEpub(filePath: string): Promise<ParsedEpub> {
       const chapterTitle =
         $("h1, h2").first().text().trim() || `Chapter ${chapters.length + 1}`;
 
-      // Extract plain text for audio sync
+      // Extract plain text for audio sync, preserving paragraph boundaries
       const startIndex = fullText.length;
-      const bodyText = $text("body").text().replace(/\s+/g, " ").trim();
-      fullText += bodyText + " ";
+      
+      // Extract text from paragraph elements to preserve structure
+      const paragraphs: string[] = [];
+      $text("body").find("p, div.paragraph, div[class*='para']").each((_, el) => {
+        const text = $text(el).text().replace(/\s+/g, " ").trim();
+        if (text.length > 0) {
+          paragraphs.push(text);
+        }
+      });
+      
+      // If no paragraphs found, fall back to extracting all text but preserve newlines
+      let bodyText: string;
+      if (paragraphs.length > 0) {
+        bodyText = paragraphs.join("\n\n");
+      } else {
+        // Fallback: try to preserve line breaks from the HTML
+        bodyText = $text("body").html() || "";
+        // Replace block-level elements with double newlines
+        bodyText = bodyText
+          .replace(/<\/(p|div|h[1-6]|li|blockquote)>/gi, "\n\n")
+          .replace(/<br\s*\/?>/gi, "\n");
+        // Remove all remaining HTML tags
+        bodyText = $text.load(bodyText).text().trim();
+        // Normalize whitespace but preserve paragraph breaks
+        bodyText = bodyText
+          .split(/\n\n+/)
+          .map(para => para.replace(/\s+/g, " ").trim())
+          .filter(para => para.length > 0)
+          .join("\n\n");
+      }
+      
+      fullText += bodyText + "\n\n";
       const endIndex = fullText.length;
 
       if (bodyText.length > 50) {
