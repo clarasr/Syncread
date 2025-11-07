@@ -7,12 +7,17 @@ SyncRead is a mobile-first web application designed to provide an immersive read
 ## Recent Changes
 
 **Nov 7, 2025 - Critical Bug Fixes:**
+- **Fixed progress polling spam:** Stabilized debounce hook with useCallback and onFlushRef
+  - Progress update functions were being recreated every render, causing infinite loop
+  - Used useCallback for stable function references and ref for onFlush to break render cycle
+  - Progress now updates every 5 seconds as intended (was spamming every 130ms)
+- **Fixed audio playback initialization:** Handle user clicking play before audio loads
+  - Added init-time play check when user presses play before audio element is ready
+  - Gracefully handles browser autoplay policy with NotAllowedError detection
+  - Ensures playback starts regardless of load timing without console spam
 - **Fixed EPUB reparse endpoint:** Downloads EPUB from object storage to temp file before parsing
   - Mirrors the upload flow pattern with proper cleanup in finally block
   - Restores reparse functionality for EPUBs stored in object storage
-- **Fixed progress polling retry spam:** Clear buffered value immediately in `useDebouncedProgress` hook
-  - Prevents rapid retry loop when API call fails (e.g., during "processing" status)
-  - Progress persistence continues to work even during long sync sessions
 - **Fixed progressive sync chunk matching:** Added 100-word overlap context to text windows
   - Provides fuzzy matcher with enough context to find matches at chunk boundaries
   - Resolves chunk 2 matching failures when boundary splits mid-sentence
