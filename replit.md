@@ -6,14 +6,22 @@ SyncRead is a mobile-first web application designed to provide an immersive read
 
 ## Recent Changes
 
-**Nov 7, 2025 - Paragraph Highlighting Fix:**
-- **Fixed EPUB parser:** Updated `epub-parser.ts` to preserve paragraph boundaries when extracting text
-  - Now extracts text from `<p>` tags and joins with double newlines (`\n\n`)
-  - Fallback logic replaces block-level HTML elements with paragraph breaks
-  - Prevents all text from being collapsed into a single paragraph
-- **Added re-parse feature:** New API endpoint `/api/epub/:id/reparse` to refresh existing EPUBs
-  - Library UI now has "Refresh Paragraphs" option in EPUB dropdown menu
-  - Allows updating old EPUBs without re-uploading
+**Nov 7, 2025 - Real-Time Paragraph Highlighting & Progress Polling Fixes:**
+- **Fixed paragraph highlighting timing:** Switched from using last passed anchor to linear interpolation
+  - Highlighting now moves to next paragraph BEFORE voice finishes reading it (predictive vs reactive)
+  - Uses interpolation formula: `textIndex = beforeAnchor.textIndex + (textDiff × timeProgress / timeDiff)`
+  - Provides smooth, real-time highlighting synchronized with audio playback position
+- **Fixed progress polling after audio ends:** Added immediate flush when audio finishes
+  - `handleEnded` callback now calls `flushProgressUpdate()` to save final position
+  - Progress polling stops when `isPlaying` becomes false (no more continuous requests)
+  - Prevents unnecessary API calls after playback completes
+- **EPUB parser paragraph fix:** Updated `epub-parser.ts` to preserve paragraph boundaries
+  - Extracts text from `<p>` tags individually, joins with double newlines (`\n\n`)
+  - Fallback replaces block-level HTML elements with paragraph breaks
+  - Prevents all text from collapsing into a single paragraph
+- **Re-parse feature:** New `/api/epub/:id/reparse` endpoint to refresh existing EPUBs
+  - Library UI has "Refresh Paragraphs" option in EPUB dropdown menu
+  - Updates old EPUBs without re-uploading
 
 **Nov 6, 2025 - ElevenReader-Style UX Improvements:**
 - **Fixed theme colors:** Light mode now has white background (98% lightness), dark mode stays dark (4% lightness)
