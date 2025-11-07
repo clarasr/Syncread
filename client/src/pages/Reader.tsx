@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { BookOpen, ArrowLeft, Type, Palette, AlertCircle, Scroll } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { useReaderTheme } from "@/hooks/use-reader-theme";
@@ -111,7 +111,7 @@ export default function Reader() {
   const resumeAppliedRef = useRef(false);
   const latestSessionRef = useRef<SyncSession | null>(null);
 
-  const resolveDuration = () => {
+  const resolveDuration = useCallback(() => {
     const rawDuration = audioRef.current?.duration;
     if (typeof rawDuration === "number" && Number.isFinite(rawDuration) && rawDuration > 0) {
       return rawDuration;
@@ -120,35 +120,37 @@ export default function Reader() {
       return audiobook.duration;
     }
     return undefined;
-  };
+  }, [audiobook?.duration]);
+
+  const handleProgressFlush = useCallback(async (positionSec: number) => {
+    if (!sessionId) return;
+    const duration = resolveDuration();
+    const clampedPosition = duration ? Math.min(Math.max(positionSec, 0), duration) : Math.max(positionSec, 0);
+
+    try {
+      const updatedSession = await apiRequest(`/api/sync/${sessionId}/progress`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          positionSec: clampedPosition,
+          durationSec: duration ?? null,
+          progressVersion: latestSessionRef.current?.progressVersion ?? 1,
+        }),
+      });
+
+      if (updatedSession) {
+        latestSessionRef.current = updatedSession;
+        queryClient.setQueryData(["/api/sync", sessionId], updatedSession);
+      }
+    } catch (error) {
+      console.error("Failed to persist playback progress:", error);
+    }
+  }, [sessionId, resolveDuration]);
 
   const { schedule: scheduleProgressUpdate, flush: flushProgressUpdate } = useDebouncedProgress(
-    async (positionSec) => {
-      if (!sessionId) return;
-      const duration = resolveDuration();
-      const clampedPosition = duration ? Math.min(Math.max(positionSec, 0), duration) : Math.max(positionSec, 0);
-
-      try {
-        const updatedSession = await apiRequest(`/api/sync/${sessionId}/progress`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            positionSec: clampedPosition,
-            durationSec: duration ?? null,
-            progressVersion: latestSessionRef.current?.progressVersion ?? 1,
-          }),
-        });
-
-        if (updatedSession) {
-          latestSessionRef.current = updatedSession;
-          queryClient.setQueryData(["/api/sync", sessionId], updatedSession);
-        }
-      } catch (error) {
-        console.error("Failed to persist playback progress:", error);
-      }
-    },
+    handleProgressFlush,
     5000
   );
 
@@ -283,10 +285,13 @@ export default function Reader() {
     audioRef.current = audio;
     applyStoredPlaybackPosition();
 
-    // If user already hit play before audio loaded, start playback
+    // If user clicked play before audio loaded, start playback now
     if (isPlaying) {
       audio.play().catch(err => {
-        console.error("Failed to play audio on init:", err);
+        // Handle browser autoplay policy - don't spam console
+        if (err.name !== 'NotAllowedError') {
+          console.error("Failed to play audio on init:", err);
+        }
         setIsPlaying(false);
       });
     }

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 
 export function useDebouncedProgress(
   onFlush: (positionSeconds: number) => Promise<void> | void,
@@ -7,8 +7,13 @@ export function useDebouncedProgress(
   const lastValueRef = useRef<number | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFlushingRef = useRef(false);
+  const onFlushRef = useRef(onFlush);
 
-  const flush = async () => {
+  useEffect(() => {
+    onFlushRef.current = onFlush;
+  }, [onFlush]);
+
+  const flush = useCallback(async () => {
     if (lastValueRef.current == null || isFlushingRef.current) {
       return;
     }
@@ -17,13 +22,13 @@ export function useDebouncedProgress(
     lastValueRef.current = null; // Clear immediately to prevent retry spam
     isFlushingRef.current = true;
     try {
-      await onFlush(valueToFlush);
+      await onFlushRef.current(valueToFlush);
     } finally {
       isFlushingRef.current = false;
     }
-  };
+  }, []);
 
-  const schedule = (positionSeconds: number) => {
+  const schedule = useCallback((positionSeconds: number) => {
     lastValueRef.current = positionSeconds;
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
@@ -34,7 +39,7 @@ export function useDebouncedProgress(
         console.error("Failed to flush progress:", error);
       });
     }, delay);
-  };
+  }, [delay, flush]);
 
   useEffect(() => {
     return () => {
@@ -45,7 +50,7 @@ export function useDebouncedProgress(
         console.error("Failed to flush progress on unmount:", error);
       });
     };
-  }, []);
+  }, [flush]);
 
   return {
     schedule,
