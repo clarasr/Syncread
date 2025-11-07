@@ -12,27 +12,34 @@ export function findTextMatches(
 ): SyncAnchor[] {
   const syncAnchors: SyncAnchor[] = [];
 
-  // Split EPUB text into sentences for better matching
-  const sentences = epubText.match(/[^.!?]+[.!?]+/g) || [epubText];
+  // Create overlapping text chunks for better matching of multi-sentence transcriptions
+  // Use a sliding window approach with ~50-word chunks and 25-word overlap
+  const words = epubText.split(/\s+/);
+  const CHUNK_SIZE = 50;
+  const OVERLAP = 25;
+  const chunks: { text: string; index: number }[] = [];
   
-  // Create a map of sentence to character index
-  const sentenceMap: { text: string; index: number }[] = [];
-  let currentIndex = 0;
-  
-  for (const sentence of sentences) {
-    const trimmed = sentence.trim();
-    const foundIndex = epubText.indexOf(trimmed, currentIndex);
+  for (let i = 0; i < words.length; i += (CHUNK_SIZE - OVERLAP)) {
+    const chunkWords = words.slice(i, i + CHUNK_SIZE);
+    const chunkText = chunkWords.join(' ');
+    
+    // Find the character index of this chunk in the original text
+    const searchStart = i === 0 ? 0 : chunks[chunks.length - 1]?.index || 0;
+    const firstWord = chunkWords[0];
+    const foundIndex = epubText.indexOf(firstWord, searchStart);
+    
     if (foundIndex !== -1) {
-      sentenceMap.push({ text: trimmed, index: foundIndex });
-      currentIndex = foundIndex + trimmed.length;
+      chunks.push({ text: chunkText, index: foundIndex });
     }
   }
 
   // Set up Fuse.js for fuzzy matching
-  const fuse = new Fuse(sentenceMap, {
+  const fuse = new Fuse(chunks, {
     keys: ["text"],
     threshold: 0.4, // 0.0 = perfect match, 1.0 = match anything
     includeScore: true,
+    ignoreLocation: true, // Don't penalize matches based on position in the chunk
+    minMatchCharLength: 10, // Require at least 10 characters to match
   });
 
   // Match each transcription to EPUB text
