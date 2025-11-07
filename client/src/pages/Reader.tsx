@@ -260,6 +260,8 @@ export default function Reader() {
 
     const handleEnded = () => {
       setIsPlaying(false);
+      // Immediately flush progress when audio ends
+      flushProgressUpdate();
     };
 
     const handleLoadedMetadata = () => {
@@ -298,7 +300,7 @@ export default function Reader() {
         audioRef.current = null;
       }
     };
-  }, [audiobook?.id]);
+  }, [audiobook?.id, flushProgressUpdate]);
 
   // Handle play/pause
   useEffect(() => {
@@ -335,16 +337,36 @@ export default function Reader() {
       return;
     }
 
-    // Find the text index corresponding to current audio time
     const anchors = session.syncAnchors;
     let textIndex = 0;
 
-    // Find the last anchor before or at current time
-    for (let i = anchors.length - 1; i >= 0; i--) {
+    // Find anchors before and after current time for interpolation
+    let beforeAnchor = null;
+    let afterAnchor = null;
+
+    for (let i = 0; i < anchors.length; i++) {
       if (anchors[i].audioTime <= currentTime) {
-        textIndex = anchors[i].textIndex;
+        beforeAnchor = anchors[i];
+      } else {
+        afterAnchor = anchors[i];
         break;
       }
+    }
+
+    // Interpolate between anchors to estimate current text position
+    if (beforeAnchor && afterAnchor) {
+      // Linear interpolation between the two anchors
+      const timeDiff = afterAnchor.audioTime - beforeAnchor.audioTime;
+      const textDiff = afterAnchor.textIndex - beforeAnchor.textIndex;
+      const timeProgress = currentTime - beforeAnchor.audioTime;
+      const ratio = timeDiff > 0 ? timeProgress / timeDiff : 0;
+      textIndex = Math.floor(beforeAnchor.textIndex + (textDiff * ratio));
+    } else if (beforeAnchor) {
+      // Past the last anchor - use it as-is
+      textIndex = beforeAnchor.textIndex;
+    } else if (afterAnchor) {
+      // Before the first anchor - stay at beginning
+      textIndex = 0;
     }
 
     // Update current text index for progressive sync advance
