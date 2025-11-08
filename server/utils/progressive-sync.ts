@@ -149,14 +149,12 @@ async function findInitialAlignment(
  * @param sessionId - The sync session ID
  * @param wordStart - Starting word index
  * @param wordCount - Number of words to sync
- * @param knownAudioStartTime - Optional: Known audio time for this word position (from previous anchor)
  * @returns Success status
  */
 export async function syncWordChunk(
   sessionId: string,
   wordStart: number,
-  wordCount: number,
-  knownAudioStartTime?: number
+  wordCount: number
 ): Promise<boolean> {
   // Declare these outside try block so they're accessible in finally for cleanup
   let audioFilePath: string = '';
@@ -213,54 +211,26 @@ export async function syncWordChunk(
     const actualEnd = Math.min(totalWords, wordStart + wordCount);
     const actualCount = actualEnd - actualStart;
 
-    console.log(`[syncWordChunk] Processing words ${actualStart}-${actualEnd} (${actualCount} words) out of ${totalWords} total`);
-
     if (actualCount <= 0) {
-      console.log(`[syncWordChunk] No words to sync: start=${wordStart}, count=${wordCount}, totalWords=${totalWords}`);
+      console.log(`No words to sync: start=${wordStart}, count=${wordCount}, totalWords=${totalWords}`);
       return false;
     }
 
     // Get character indices for this word range
-    // Include overlap before start for better fuzzy matching context
-    const OVERLAP_WORDS = Math.min(100, actualStart); // Up to 100 words before, but not before the start
-    const overlapStart = actualStart - OVERLAP_WORDS;
-    const overlapStartCharIndex = overlapStart > 0 ? wordMap[overlapStart] : 0;
     const startCharIndex = wordMap[actualStart];
     const endCharIndex = actualEnd < totalWords ? wordMap[actualEnd] : epub.textContent.length;
-    const textSlice = epub.textContent.slice(overlapStartCharIndex, endCharIndex);
+    const textSlice = epub.textContent.slice(startCharIndex, endCharIndex);
 
-    console.log(`[syncWordChunk] Text slice: ${textSlice.length} characters (with ${OVERLAP_WORDS}-word overlap before start)`);
-    console.log(`[syncWordChunk] Text slice preview: "${textSlice.substring(0, 200)}..."`);
-    console.log(`[syncWordChunk] Extracting audio for word range...`);
-
-    // Extract audio segment - use known time if available, otherwise estimate from word count
+    // Extract audio segment based on word range
     const chunkDir = path.join("uploads", `chunks_${sessionId}`);
-    let audioSegment;
-    
-    if (knownAudioStartTime !== undefined) {
-      // Use precise time-based extraction
-      const estimatedDuration = (actualCount / 150) * 60; // Rough estimate for duration (150 WPM)
-      console.log(`[syncWordChunk] Using known audio start time: ${knownAudioStartTime.toFixed(1)}s, duration: ${estimatedDuration.toFixed(1)}s`);
-      audioSegment = await extractAudioByTimeRange(
-        audioFilePath,
-        knownAudioStartTime,
-        estimatedDuration,  // Pass duration, not end time!
-        chunkDir
-      );
-    } else {
-      // Fall back to word-based estimation
-      audioSegment = await extractAudioByWordRange(
-        audioFilePath,
-        actualStart,
-        actualCount,
-        chunkDir
-      );
-    }
-
-    console.log(`[syncWordChunk] Audio segment extracted: ${audioSegment.startTime.toFixed(1)}s - ${(audioSegment.startTime + audioSegment.duration).toFixed(1)}s`);
+    const audioSegment = await extractAudioByWordRange(
+      audioFilePath,
+      actualStart,
+      actualCount,
+      chunkDir
+    );
 
     // Transcribe the audio segment
-    console.log(`[syncWordChunk] Transcribing audio segment...`);
     const transcription = await transcribeAudioSegment(audioSegment.filePath);
     console.log(`[syncWordChunk] Transcription: "${transcription.text.substring(0, 100)}..."`);
     console.log(`[syncWordChunk] Received ${transcription.segments?.length || 0} segments from Whisper`);
@@ -312,10 +282,10 @@ export async function syncWordChunk(
       console.warn(`[Sync Quality] ⚠️  Low average confidence (${(avgConfidence * 100).toFixed(1)}%). Sync accuracy may be poor.`);
     }
 
-    // Adjust matches to global text indices (accounting for overlap)
+    // Adjust matches to global text indices (not slice-relative)
     const adjustedMatches = matches.map(match => ({
       audioTime: match.audioTime,
-      textIndex: match.textIndex + overlapStartCharIndex,
+      textIndex: match.textIndex + startCharIndex,
       confidence: match.confidence,
     }));
 
@@ -384,120 +354,25 @@ export async function syncWordChunk(
 }
 
 /**
- * Start progressive sync by finding initial alignment then syncing chunks
+ * Start progressive sync by syncing the first chunk
  * @param sessionId - The sync session ID
  * @returns Success status
  */
 export async function startProgressiveSync(sessionId: string): Promise<boolean> {
-  let audioFilePath: string = '';
-  let needsCleanup = false;
-  
-  try {
-    const session = await storage.getSyncSession(sessionId);
-    if (!session) {
-      throw new Error("Session not found");
-    }
-
-    const audio = await storage.getAudiobook(session.audioId);
-    if (!audio) {
-      throw new Error("Audiobook not found");
-    }
-
-    // Update status to processing
-    await storage.updateSyncSession(sessionId, {
-      status: "processing",
-      currentStep: "transcribing",
-    });
-
-    // Download audio file from Object Storage if needed
-    audioFilePath = audio.filePath;
-    const uploadDir = path.join(process.cwd(), "uploads");
-    
-    if (audio.objectStoragePath) {
-      const objectStorageService = new ObjectStorageService();
-      const objectFile = await objectStorageService.getObjectEntityFile(audio.objectStoragePath);
-      const tempPath = path.join(uploadDir, `temp-audio-progressive-${sessionId}.${audio.format}`);
-      
-      // Download to temp location for processing
-      await new Promise<void>((resolve, reject) => {
-        const writeStream = fs.createWriteStream(tempPath);
-        const readStream = objectFile.createReadStream();
-        readStream.pipe(writeStream);
-        writeStream.on('finish', () => resolve());
-        writeStream.on('error', reject);
-        readStream.on('error', reject);
-      });
-      
-      audioFilePath = tempPath;
-      needsCleanup = true;
-    }
-
-    console.log("[Progressive Sync] Phase 1: Finding initial alignment...");
-    
-    // PHASE 1: Find initial alignment (handles narrator intro / front matter offset)
-    const initialAlignment = await findInitialAlignment(
-      sessionId,
-      audioFilePath,
-      45, // Search first 45 seconds of audio
-      5000 // Search first 5000 words of EPUB
-    );
-
-    if (!initialAlignment) {
-      console.warn("[Progressive Sync] No initial alignment found. Falling back to start-from-0 approach.");
-      // Fall back to traditional approach (may fail for books with intro/front matter)
-      return await syncWordChunk(sessionId, 0, 75);
-    }
-
-    console.log(`[Progressive Sync] ✓ Initial alignment found at text position ${initialAlignment.textIndex}, audio time ${initialAlignment.audioTime.toFixed(1)}s`);
-    
-    // Seed the initial anchor
-    await storage.updateSyncSession(sessionId, {
-      syncAnchors: [{
-        audioTime: initialAlignment.audioTime,
-        textIndex: initialAlignment.textIndex, // Character position from fuzzy matcher
-        confidence: initialAlignment.confidence,
-      }],
-    });
-
-    // PHASE 2: Start progressive sync from the discovered starting point
-    console.log("[Progressive Sync] Phase 2: Starting progressive chunks from aligned position...");
-    
-    // Convert character position to word index for progressive chunking
-    const wordMap = buildWordIndexMap((await storage.getEpubBook(session.epubId))!.textContent);
-    let startWordIndex = 0;
-    for (let i = 0; i < wordMap.length; i++) {
-      if (wordMap[i] >= initialAlignment.textIndex) {
-        startWordIndex = i;
-        break;
-      }
-    }
-    
-    const FIRST_CHUNK_SIZE = 1000; // Process first chunk (1000 words)
-    
-    console.log(`[Progressive Sync] Starting from word ${startWordIndex} (character ${initialAlignment.textIndex})`);
-    
-    // Sync from the aligned word position using the known audio time
-    return await syncWordChunk(
-      sessionId, 
-      startWordIndex, 
-      FIRST_CHUNK_SIZE,
-      initialAlignment.audioTime // Pass the known audio start time!
-    );
-  } catch (error: any) {
-    console.error(`[Progressive Sync] Error: ${error.message}`);
-    await storage.updateSyncSession(sessionId, {
-      status: "error",
-      error: `Progressive sync failed: ${error.message}`,
-    });
-    return false;
-  } finally {
-    // Clean up downloaded audio file
-    if (needsCleanup && audioFilePath && fs.existsSync(audioFilePath)) {
-      try {
-        fs.unlinkSync(audioFilePath);
-      } catch (cleanupError) {
-        console.error("Error cleaning up temp audio file:", cleanupError);
-      }
-    }
+  const session = await storage.getSyncSession(sessionId);
+  if (!session) {
+    throw new Error("Session not found");
   }
+
+  // Update status to processing
+  await storage.updateSyncSession(sessionId, {
+    status: "processing",
+    currentStep: "transcribing",
+  });
+
+  // Get the configured chunk size (default 1000 words)
+  const chunkSize = session.wordChunkSize || 1000;
+
+  // Sync the first chunk
+  return await syncWordChunk(sessionId, 0, chunkSize);
 }
