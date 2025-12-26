@@ -7,7 +7,7 @@ export interface SyncAnchor {
 }
 
 // Minimum confidence threshold for accepting matches
-const MIN_CONFIDENCE = 0.55; // Increased from 0.5 for better quality
+const MIN_CONFIDENCE = 0.40; // Lowered to accept more matches (was 0.55)
 
 // Split text into sentences for finer-grained matching
 function splitIntoSentences(text: string): { text: string; index: number }[] {
@@ -67,14 +67,14 @@ export function findTextMatches(
 
   console.log(`[Fuzzy Matcher] Total search space: ${allChunks.length} chunks (${sentences.length} sentences + ${wordChunks.length} word chunks)`);
 
-  // Set up Fuse.js for fuzzy matching with stricter parameters
+  // Set up Fuse.js for fuzzy matching
   const fuse = new Fuse(allChunks, {
     keys: ["text"],
-    threshold: 0.35, // Stricter matching (was 0.4)
+    threshold: 0.45, // Balance between strict and permissive (was 0.35)
     includeScore: true,
     ignoreLocation: true,
-    minMatchCharLength: 12, // Increased from 10
-    distance: 200, // How far to search for pattern
+    minMatchCharLength: 10, // Reduced to match shorter segments
+    distance: 300, // Increased search distance for better matching
   });
 
   // Match each transcription segment to EPUB text

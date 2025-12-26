@@ -112,7 +112,7 @@ async function findInitialAlignment(
     const matches = findTextMatches(searchText, segmentMatches);
 
     if (matches.length === 0) {
-      console.warn(`[Initial Alignment] ✗ No match found with sufficient confidence (>55%)`);
+      console.warn(`[Initial Alignment] ✗ No match found with sufficient confidence (>40%)`);
       console.warn(`[Initial Alignment] This may indicate the audiobook doesn't match the EPUB text`);
       return null;
     }
@@ -305,11 +305,13 @@ export async function syncWordChunk(
     console.log(`[Sync Quality] Match rate: ${matchRate.toFixed(1)}% (${matches.length}/${transcriptionsToMatch.length})`);
     console.log(`[Sync Quality] Confidence: avg=${(avgConfidence * 100).toFixed(1)}%, min=${(minConfidence * 100).toFixed(1)}%, max=${(maxConfidence * 100).toFixed(1)}%`);
 
-    if (matchRate < 50) {
+    if (matchRate < 40) {
       console.warn(`[Sync Quality] ⚠️  Low match rate! Only ${matchRate.toFixed(1)}% of segments matched. Audio may not align well with text.`);
     }
-    if (avgConfidence < 0.7) {
+    if (avgConfidence < 0.55) {
       console.warn(`[Sync Quality] ⚠️  Low average confidence (${(avgConfidence * 100).toFixed(1)}%). Sync accuracy may be poor.`);
+    } else if (avgConfidence >= 0.75) {
+      console.log(`[Sync Quality] ✓ Excellent sync quality! High confidence matches.`);
     }
 
     // Adjust matches to global text indices (accounting for overlap)
