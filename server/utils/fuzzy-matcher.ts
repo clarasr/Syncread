@@ -7,7 +7,22 @@ export interface SyncAnchor {
 }
 
 // Minimum confidence threshold for accepting matches
-const MIN_CONFIDENCE = 0.55; // Increased from 0.5 for better quality
+const MIN_CONFIDENCE = 0.40; // Lowered to accept more matches (was 0.55)
+
+/**
+ * Normalize text for matching by removing punctuation and standardizing whitespace
+ * This makes matching more robust to differences between EPUB and audio transcription
+ */
+function normalizeForMatching(text: string): string {
+  return text
+    .toLowerCase()
+    // Remove most punctuation but keep apostrophes in contractions (don't, it's)
+    .replace(/["""'']/g, "'") // Normalize quotes to standard apostrophe
+    .replace(/[—–-]/g, " ") // Replace dashes with spaces
+    .replace(/[^\w\s']/g, " ") // Remove punctuation except apostrophes
+    .replace(/\s+/g, " ") // Normalize whitespace
+    .trim();
+}
 
 // Split text into sentences for finer-grained matching
 function splitIntoSentences(text: string): { text: string; index: number }[] {
@@ -22,7 +37,7 @@ function splitIntoSentences(text: string): { text: string; index: number }[] {
     const sentence = match[0].trim();
     if (sentence.length > 15) { // Only include substantial sentences
       sentences.push({
-        text: sentence,
+        text: normalizeForMatching(sentence), // Normalize for matching
         index: match.index,
       });
     }
@@ -58,7 +73,10 @@ export function findTextMatches(
     const foundIndex = epubText.indexOf(firstWord, searchStart);
 
     if (foundIndex !== -1) {
-      wordChunks.push({ text: chunkText, index: foundIndex });
+      wordChunks.push({
+        text: normalizeForMatching(chunkText), // Normalize for matching
+        index: foundIndex
+      });
     }
   }
 
@@ -67,14 +85,14 @@ export function findTextMatches(
 
   console.log(`[Fuzzy Matcher] Total search space: ${allChunks.length} chunks (${sentences.length} sentences + ${wordChunks.length} word chunks)`);
 
-  // Set up Fuse.js for fuzzy matching with stricter parameters
+  // Set up Fuse.js for fuzzy matching
   const fuse = new Fuse(allChunks, {
     keys: ["text"],
-    threshold: 0.35, // Stricter matching (was 0.4)
+    threshold: 0.45, // Balance between strict and permissive (was 0.35)
     includeScore: true,
     ignoreLocation: true,
-    minMatchCharLength: 12, // Increased from 10
-    distance: 200, // How far to search for pattern
+    minMatchCharLength: 10, // Reduced to match shorter segments
+    distance: 300, // Increased search distance for better matching
   });
 
   // Match each transcription segment to EPUB text
@@ -85,7 +103,9 @@ export function findTextMatches(
       continue;
     }
 
-    const results = fuse.search(cleanTranscript);
+    // Normalize transcription for matching (remove punctuation, lowercase)
+    const normalizedTranscript = normalizeForMatching(cleanTranscript);
+    const results = fuse.search(normalizedTranscript);
 
     if (results.length > 0) {
       const bestMatch = results[0];

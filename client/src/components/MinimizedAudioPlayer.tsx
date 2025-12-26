@@ -1,3 +1,24 @@
+/**
+ * MinimizedAudioPlayer - Collapsible audio player for mode switching
+ *
+ * RESERVED FOR V1.0 - Enhanced Reading Modes
+ *
+ * Purpose:
+ * - Show minimized audio player at bottom of screen while reading EPUB-only
+ * - Allow listening to audiobook while browsing library
+ * - Enable seamless mode switching without losing playback position
+ *
+ * Features:
+ * - Minimized bar with progress indicator
+ * - Expands to full player on click
+ * - Shows book cover, title, chapter info
+ * - Volume and playback speed controls
+ *
+ * Difference from IntegratedAudioPlayer:
+ * - This is for standalone audio playback (not synced with text)
+ * - IntegratedAudioPlayer is for synced reading mode (karaoke highlighting)
+ */
+
 import { useState } from "react";
 import { Play, Pause, SkipBack, SkipForward, ChevronUp, ChevronDown, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -56,7 +77,7 @@ export function MinimizedAudioPlayer({
       <div className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         {/* Progress Bar */}
         <div className="h-1 bg-muted">
-          <div 
+          <div
             className="h-full bg-primary transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
@@ -70,8 +91,8 @@ export function MinimizedAudioPlayer({
         >
           {/* Book Cover Thumbnail */}
           {coverImage ? (
-            <img 
-              src={coverImage} 
+            <img
+              src={coverImage}
               alt={bookTitle}
               className="h-12 w-12 rounded object-cover"
             />
@@ -81,27 +102,63 @@ export function MinimizedAudioPlayer({
             </div>
           )}
 
-          {/* Info */}
-          <div className="flex-1 min-w-0 text-left">
-            <p className="text-sm font-medium truncate">{chapterTitle}</p>
-            <p className="text-xs text-muted-foreground truncate">{bookTitle}</p>
+          {/* Book Info */}
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium truncate">{bookTitle}</div>
+            <div className="text-xs text-muted-foreground truncate">{chapterTitle}</div>
           </div>
 
-          {/* Play Button */}
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={(e) => {
-              e.stopPropagation();
-              onPlayPause();
-            }}
-            data-testid="button-play-pause-mini"
-          >
-            {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-          </Button>
+          {/* Quick Controls */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSkipBack();
+              }}
+              data-testid="button-skip-back-mini"
+            >
+              <SkipBack className="h-4 w-4" />
+            </Button>
 
-          {/* Expand Icon */}
-          <ChevronUp className="h-5 w-5 text-muted-foreground" />
+            <Button
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                onPlayPause();
+              }}
+              data-testid="button-play-pause-mini"
+            >
+              {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSkipForward();
+              }}
+              data-testid="button-skip-forward-mini"
+            >
+              <SkipForward className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Time Display */}
+          <div className="text-xs text-muted-foreground tabular-nums hidden sm:block">
+            {formatTime(currentTime)} / {formatTime(safeDuration)}
+          </div>
+
+          {/* Expand Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            data-testid="button-expand"
+          >
+            <ChevronUp className="h-4 w-4" />
+          </Button>
         </div>
       </div>
     );
@@ -109,117 +166,121 @@ export function MinimizedAudioPlayer({
 
   // Expanded Player
   return (
-    <div className="fixed inset-0 z-50 bg-background">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b">
+    <div className="fixed bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      {/* Collapse Button */}
+      <div className="flex justify-end p-2 border-b">
         <Button
-          size="icon"
           variant="ghost"
+          size="icon"
           onClick={() => setIsExpanded(false)}
-          data-testid="button-minimize-player"
+          data-testid="button-collapse-player"
         >
-          <ChevronDown className="h-5 w-5" />
+          <ChevronDown className="h-4 w-4" />
         </Button>
-        <p className="text-sm font-medium">Now Playing</p>
-        <div className="w-10" /> {/* Spacer for center alignment */}
       </div>
 
-      {/* Content */}
-      <div className="flex flex-col items-center justify-center p-8 space-y-6">
-        {/* Large Book Cover */}
-        {coverImage ? (
-          <img 
-            src={coverImage} 
-            alt={bookTitle}
-            className="w-64 h-64 rounded-lg shadow-lg object-cover"
-          />
-        ) : (
-          <div className="w-64 h-64 rounded-lg bg-muted flex items-center justify-center shadow-lg">
-            <p className="text-muted-foreground">No Cover</p>
+      <div className="p-6 space-y-4">
+        {/* Book Info */}
+        <div className="flex items-center gap-4">
+          {coverImage ? (
+            <img
+              src={coverImage}
+              alt={bookTitle}
+              className="h-16 w-16 rounded object-cover"
+            />
+          ) : (
+            <div className="h-16 w-16 rounded bg-muted flex items-center justify-center">
+              <span className="text-xs text-muted-foreground">No Cover</span>
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="font-semibold truncate">{bookTitle}</div>
+            <div className="text-sm text-muted-foreground truncate">{chapterTitle}</div>
           </div>
-        )}
-
-        {/* Track Info */}
-        <div className="text-center space-y-1">
-          <h2 className="text-xl font-semibold">{chapterTitle}</h2>
-          <p className="text-sm text-muted-foreground">{bookTitle}</p>
         </div>
 
-        {/* Seek Slider */}
-        <div className="w-full max-w-md space-y-2">
+        {/* Progress Slider */}
+        <div className="space-y-2">
           <Slider
-            value={[Math.min(currentTime, safeDuration)]}
-            onValueChange={([value]) => onSeek(value)}
-            min={0}
+            value={[currentTime]}
             max={safeDuration}
-            step={1}
-            data-testid="slider-seek"
+            step={0.1}
+            onValueChange={([value]) => onSeek(value)}
+            className="w-full"
+            data-testid="audio-progress-slider-expanded"
           />
-          <div className="flex justify-between text-xs text-muted-foreground">
+          <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
             <span>{formatTime(currentTime)}</span>
             <span>{formatTime(safeDuration)}</span>
           </div>
         </div>
 
         {/* Playback Controls */}
-        <div className="flex items-center gap-6">
+        <div className="flex items-center justify-center gap-4">
           <Button
-            size="icon"
             variant="ghost"
+            size="icon"
             onClick={onSkipBack}
-            data-testid="button-skip-back"
+            data-testid="button-skip-back-expanded"
           >
-            <SkipBack className="h-6 w-6" />
+            <SkipBack className="h-5 w-5" />
           </Button>
 
           <Button
             size="icon"
-            className="h-16 w-16"
+            className="h-12 w-12"
             onClick={onPlayPause}
-            data-testid="button-play-pause-full"
+            data-testid="button-play-pause-expanded"
           >
-            {isPlaying ? <Pause className="h-8 w-8" /> : <Play className="h-8 w-8" />}
+            {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
           </Button>
 
           <Button
-            size="icon"
             variant="ghost"
+            size="icon"
             onClick={onSkipForward}
-            data-testid="button-skip-forward"
+            data-testid="button-skip-forward-expanded"
           >
-            <SkipForward className="h-6 w-6" />
+            <SkipForward className="h-5 w-5" />
           </Button>
         </div>
 
-        {/* Speed Control */}
-        <div className="flex items-center gap-2">
-          <p className="text-sm text-muted-foreground">Speed:</p>
-          <div className="flex gap-1">
-            {speeds.map(speed => (
-              <Button
-                key={speed}
-                size="sm"
-                variant={playbackSpeed === speed ? "default" : "ghost"}
-                onClick={() => onSpeedChange(speed)}
-                data-testid={`button-speed-${speed}`}
-              >
-                {speed}x
-              </Button>
-            ))}
+        {/* Additional Controls */}
+        <div className="flex items-center gap-6">
+          {/* Volume */}
+          <div className="flex items-center gap-2 flex-1">
+            <Volume2 className="h-4 w-4 text-muted-foreground" />
+            <Slider
+              value={[volume * 100]}
+              max={100}
+              step={1}
+              onValueChange={([value]) => onVolumeChange(value / 100)}
+              className="flex-1"
+              data-testid="volume-slider"
+            />
           </div>
-        </div>
 
-        {/* Volume Control */}
-        <div className="w-full max-w-md flex items-center gap-3">
-          <Volume2 className="h-5 w-5 text-muted-foreground" />
-          <Slider
-            value={[volume * 100]}
-            onValueChange={([value]) => onVolumeChange(value / 100)}
-            min={0}
-            max={100}
-            step={1}
-            data-testid="slider-volume"
-          />
+          {/* Playback Speed */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Speed:</span>
+            <div className="flex gap-1">
+              {speeds.map((speed) => (
+                <Button
+                  key={speed}
+                  variant={playbackSpeed === speed ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => onSpeedChange(speed)}
+                  className={cn(
+                    "h-7 w-12 text-xs",
+                    playbackSpeed === speed && "font-semibold"
+                  )}
+                  data-testid={`speed-${speed}x-expanded`}
+                >
+                  {speed}x
+                </Button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
