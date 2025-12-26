@@ -112,14 +112,20 @@ async function findInitialAlignment(
     const matches = findTextMatches(searchText, segmentMatches);
 
     if (matches.length === 0) {
-      console.warn(`[Initial Alignment] No match found with confidence >0.5`);
+      console.warn(`[Initial Alignment] ✗ No match found with sufficient confidence (>55%)`);
+      console.warn(`[Initial Alignment] This may indicate the audiobook doesn't match the EPUB text`);
       return null;
     }
 
     // Sort by confidence and take the best match
     const bestMatch = matches.sort((a, b) => b.confidence - a.confidence)[0];
 
-    console.log(`[Initial Alignment] ✓ Found match at audio time ${bestMatch.audioTime.toFixed(1)}s, text position ${bestMatch.textIndex} with ${(bestMatch.confidence * 100).toFixed(1)}% confidence`);
+    // Log quality metrics for initial alignment
+    const avgConfidence = matches.reduce((sum, m) => sum + m.confidence, 0) / matches.length;
+    console.log(`[Initial Alignment] Found ${matches.length} potential matches from ${segmentMatches.length} segments`);
+    console.log(`[Initial Alignment] Match rate: ${((matches.length / segmentMatches.length) * 100).toFixed(1)}%`);
+    console.log(`[Initial Alignment] Confidence range: ${(Math.min(...matches.map(m => m.confidence)) * 100).toFixed(1)}% - ${(Math.max(...matches.map(m => m.confidence)) * 100).toFixed(1)}%`);
+    console.log(`[Initial Alignment] ✓ Best match at audio time ${bestMatch.audioTime.toFixed(1)}s, text position ${bestMatch.textIndex} with ${(bestMatch.confidence * 100).toFixed(1)}% confidence`);
     
     // Log snippet of matched text
     const matchedTextStart = Math.max(0, bestMatch.textIndex - 50);
@@ -257,14 +263,54 @@ export async function syncWordChunk(
     console.log(`[syncWordChunk] Transcribing audio segment...`);
     const transcription = await transcribeAudioSegment(audioSegment.filePath);
     console.log(`[syncWordChunk] Transcription: "${transcription.text.substring(0, 100)}..."`);
+    console.log(`[syncWordChunk] Received ${transcription.segments?.length || 0} segments from Whisper`);
 
-    // Match transcription to text slice
+    // Match transcription segments to text slice for fine-grained sync points
     console.log(`[syncWordChunk] Finding text matches...`);
-    const matches = findTextMatches(textSlice, [{
-      text: transcription.text,
-      timestamp: audioSegment.startTime,
-    }]);
-    console.log(`[syncWordChunk] Found ${matches.length} matches`);
+    let transcriptionsToMatch: { text: string; timestamp: number }[] = [];
+
+    if (transcription.segments && transcription.segments.length > 0) {
+      // Use segment-level timestamps for precise matching
+      transcriptionsToMatch = transcription.segments.map(seg => ({
+        text: seg.text,
+        timestamp: audioSegment.startTime + seg.start, // Offset by chunk start time
+      }));
+      console.log(`[syncWordChunk] Using ${transcriptionsToMatch.length} Whisper segments for matching`);
+    } else {
+      // Fallback to full transcription if no segments available
+      transcriptionsToMatch = [{
+        text: transcription.text,
+        timestamp: audioSegment.startTime,
+      }];
+      console.log(`[syncWordChunk] No segments available, using full transcription`);
+    }
+
+    const matches = findTextMatches(textSlice, transcriptionsToMatch);
+    console.log(`[syncWordChunk] Found ${matches.length} matches from ${transcriptionsToMatch.length} segments`);
+
+    // Calculate sync quality metrics
+    const matchRate = transcriptionsToMatch.length > 0
+      ? (matches.length / transcriptionsToMatch.length) * 100
+      : 0;
+    const avgConfidence = matches.length > 0
+      ? matches.reduce((sum, m) => sum + m.confidence, 0) / matches.length
+      : 0;
+    const minConfidence = matches.length > 0
+      ? Math.min(...matches.map(m => m.confidence))
+      : 0;
+    const maxConfidence = matches.length > 0
+      ? Math.max(...matches.map(m => m.confidence))
+      : 0;
+
+    console.log(`[Sync Quality] Match rate: ${matchRate.toFixed(1)}% (${matches.length}/${transcriptionsToMatch.length})`);
+    console.log(`[Sync Quality] Confidence: avg=${(avgConfidence * 100).toFixed(1)}%, min=${(minConfidence * 100).toFixed(1)}%, max=${(maxConfidence * 100).toFixed(1)}%`);
+
+    if (matchRate < 50) {
+      console.warn(`[Sync Quality] ⚠️  Low match rate! Only ${matchRate.toFixed(1)}% of segments matched. Audio may not align well with text.`);
+    }
+    if (avgConfidence < 0.7) {
+      console.warn(`[Sync Quality] ⚠️  Low average confidence (${(avgConfidence * 100).toFixed(1)}%). Sync accuracy may be poor.`);
+    }
 
     // Adjust matches to global text indices (accounting for overlap)
     const adjustedMatches = matches.map(match => ({

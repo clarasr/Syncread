@@ -25,10 +25,10 @@ export function ReadingPane({
   syncedUpToWord,
   isProgressiveMode,
 }: ReadingPaneProps) {
-  // Split content into paragraphs (double newline or single newline)
+  // Split content into paragraphs (ONLY on double newlines, preserve single line breaks)
   const paragraphs = useMemo(() => {
     return content
-      .split(/\n\n+|\n/)
+      .split(/\n\n+/)  // Split only on one or more double newlines
       .filter((p) => p.trim().length > 0);
   }, [content]);
 
