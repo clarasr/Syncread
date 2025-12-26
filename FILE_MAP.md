@@ -31,11 +31,6 @@
 | `AudiobookPlayer.tsx` | `/audiobook` | Standalone audio player | 386 |
 | `not-found.tsx` | `*` | 404 page | 21 |
 
-### Unused ❌ DELETE
-| File | Status | Reason |
-|------|--------|--------|
-| ❌ `Home.tsx` | **DELETE** | Not in router, duplicate of Library |
-
 ---
 
 ## 🧩 Components
@@ -45,7 +40,7 @@
 |-----------|---------|--------|---------|
 | ✅ `IntegratedAudioPlayer.tsx` | Reader.tsx | **KEEP** | Player for synced mode (132 lines) |
 | ✅ `AudioPlayer.tsx` | AudiobookPlayer.tsx | **KEEP** | Standalone audio player (130 lines) |
-| ❌ `MinimizedAudioPlayer.tsx` | NONE | **DELETE** | Unused minimizable player (227 lines) |
+| 🔮 `MinimizedAudioPlayer.tsx` | NONE (V1.0) | **KEEP - FUTURE** | Reserved for mode switching (227 lines) |
 
 ### Reading Components
 | Component | Used By | Status | Purpose |
@@ -63,7 +58,7 @@
 | ✅ `ProcessingModal.tsx` | Reader | **KEEP** | Sync progress modal |
 | ✅ `UploadModal.tsx` | Library | **KEEP** | File upload dialog |
 | ✅ `FileUploadZone.tsx` | UploadModal | **KEEP** | Drag-drop zone |
-| ❌ `SettingsPanel.tsx` | NONE | **DELETE** | Unused settings (109 lines) |
+| 🔮 `SettingsPanel.tsx` | NONE (V0.4) | **KEEP - FUTURE** | Reserved for Whisper model selection (109 lines) |
 
 ### UI Library (shadcn/ui) - All KEEP ✅
 65 UI components in `client/src/components/ui/` - Standard shadcn library
@@ -91,7 +86,6 @@
 | ✅ `lib/use-mobile.tsx` | UI components | **KEEP** | Mobile detection |
 | ✅ `lib/uploadValidation.ts` | UploadModal | **KEEP** | File validation |
 | ✅ `lib/epub-renderer-utils.ts` | HtmlRenderer | **KEEP** | EPUB rendering helpers |
-| ❌ `lib/authUtils.ts` | NONE | **DELETE** | Unused auth utilities |
 
 ### Server Utils
 | File | Lines | Status | Purpose |
@@ -142,48 +136,44 @@ All configuration files are needed - **KEEP ALL**:
 
 ## 📊 Summary
 
-### Files to DELETE ❌ (4 files, ~575 lines)
+### Files DELETED ✅ (2 files, ~244 lines)
 
-1. **`client/src/pages/Home.tsx`** (240 lines)
-   - Not in router
+1. ✅ **`client/src/pages/Home.tsx`** (240 lines) - DELETED
    - Duplicate of Library page
+   - Not in router
 
-2. **`client/src/components/MinimizedAudioPlayer.tsx`** (227 lines)
-   - Never imported
-   - Replaced by IntegratedAudioPlayer
+2. ✅ **`client/src/lib/authUtils.ts`** (4 lines) - DELETED
+   - Trivial helper, not needed
 
-3. **`client/src/components/SettingsPanel.tsx`** (109 lines)
-   - Never imported
-   - Settings now in modals (ThemeSelector, TypographyCustomizer)
+### Files RESERVED for Future 🔮 (2 files, ~336 lines)
 
-4. **`client/src/lib/authUtils.ts`** (~? lines)
-   - Never imported
-   - Auth now handled by useAuth hook
+1. 🔮 **`client/src/components/MinimizedAudioPlayer.tsx`** (227 lines)
+   - **Reserved for V1.0 - Enhanced Reading Modes**
+   - Collapsible player for mode switching
+   - Shows minimized bar at bottom while reading EPUB-only
+   - Added TODO comment explaining future use
+
+2. 🔮 **`client/src/components/SettingsPanel.tsx`** (109 lines)
+   - **Reserved for V0.4 - Cost Management**
+   - Whisper model selection (fast/balanced/accurate)
+   - Cost estimates before sync
+   - Added TODO comment explaining future use
 
 ### Total Codebase
 - **Active code:** ~9,225 lines (excluding UI library)
-- **Can remove:** ~575 lines (6% reduction)
+- **Removed:** ~244 lines (2.6% reduction)
+- **Reserved for future:** ~336 lines (documented for V0.4 & V1.0)
 - **UI library:** ~65 shadcn components (standard, keep all)
 
 ---
 
-## 🎯 Recommendation
+## 🎯 Result
 
-**Safe to delete now:**
+**Cleaned up:**
 ```bash
-rm client/src/pages/Home.tsx
-rm client/src/components/MinimizedAudioPlayer.tsx
-rm client/src/components/SettingsPanel.tsx
-rm client/src/lib/authUtils.ts
+✓ Deleted: Home.tsx, authUtils.ts
+✓ Reserved: MinimizedAudioPlayer.tsx (V1.0), SettingsPanel.tsx (V0.4)
+✓ Added TODO comments explaining future use
 ```
 
-These files are:
-1. Not imported anywhere
-2. Not in router
-3. Superseded by newer implementations
-4. Safe to remove without breaking anything
-
-**After deletion, commit as:**
-```
-git commit -m "chore: Remove unused components (Home, MinimizedAudioPlayer, SettingsPanel, authUtils)"
-```
+The codebase is now cleaner while preserving valuable components for planned features!
