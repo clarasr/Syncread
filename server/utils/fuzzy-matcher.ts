@@ -63,8 +63,8 @@ export function findTextMatches(
 
   // Also create overlapping word chunks as fallback for multi-sentence transcriptions
   const words = epubText.split(/\s+/);
-  const CHUNK_SIZE = 50;
-  const OVERLAP = 25;
+  const CHUNK_SIZE = 15; // Reduced from 50 to better match Whisper segment length
+  const OVERLAP = 5;     // Reduced from 25 to create more granular coverage
   const wordChunks: { text: string; index: number }[] = [];
 
   for (let i = 0; i < words.length; i += (CHUNK_SIZE - OVERLAP)) {
@@ -78,8 +78,8 @@ export function findTextMatches(
 
     if (foundIndex !== -1) {
       const normalized = normalizeForMatching(chunkText);
-      // Ensure normalized chunk is substantial
-      if (normalized.length > 20) {
+      // Ensure normalized chunk is substantial (adjusted for smaller chunk size)
+      if (normalized.length > 10) {
         wordChunks.push({
           text: normalized,
           index: foundIndex
@@ -128,6 +128,27 @@ export function findTextMatches(
     console.log(`  Original:   "${cleanTranscript.substring(0, 60)}..."`);
     console.log(`  Normalized: "${normalizedTranscript.substring(0, 60)}..."`);
 
+    // Try exact match first (much faster and more accurate)
+    let exactMatch = null;
+    for (const chunk of allChunks) {
+      if (chunk.text === normalizedTranscript) {
+        exactMatch = chunk;
+        break;
+      }
+    }
+
+    if (exactMatch) {
+      console.log(`  Exact match: "${exactMatch.text.substring(0, 60)}..." @ index ${exactMatch.index}`);
+      console.log(`  ✓ ACCEPTED (exact match - 100% confidence)`);
+      syncAnchors.push({
+        audioTime: transcription.timestamp,
+        textIndex: exactMatch.index,
+        confidence: 1.0,
+      });
+      continue;
+    }
+
+    // Fall back to fuzzy matching
     const results = fuse.search(normalizedTranscript);
 
     if (results.length > 0) {
