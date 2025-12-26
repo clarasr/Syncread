@@ -36,10 +36,14 @@ function splitIntoSentences(text: string): { text: string; index: number }[] {
   while ((match = sentenceRegex.exec(text)) !== null) {
     const sentence = match[0].trim();
     if (sentence.length > 15) { // Only include substantial sentences
-      sentences.push({
-        text: normalizeForMatching(sentence), // Normalize for matching
-        index: match.index,
-      });
+      const normalized = normalizeForMatching(sentence);
+      // Ensure normalized text is still substantial (not just punctuation)
+      if (normalized.length > 10) {
+        sentences.push({
+          text: normalized,
+          index: match.index,
+        });
+      }
     }
   }
 
@@ -73,10 +77,14 @@ export function findTextMatches(
     const foundIndex = epubText.indexOf(firstWord, searchStart);
 
     if (foundIndex !== -1) {
-      wordChunks.push({
-        text: normalizeForMatching(chunkText), // Normalize for matching
-        index: foundIndex
-      });
+      const normalized = normalizeForMatching(chunkText);
+      // Ensure normalized chunk is substantial
+      if (normalized.length > 20) {
+        wordChunks.push({
+          text: normalized,
+          index: foundIndex
+        });
+      }
     }
   }
 
@@ -84,6 +92,17 @@ export function findTextMatches(
   const allChunks = [...sentences, ...wordChunks];
 
   console.log(`[Fuzzy Matcher] Total search space: ${allChunks.length} chunks (${sentences.length} sentences + ${wordChunks.length} word chunks)`);
+  console.log(`[Fuzzy Matcher] Sample chunks:`);
+  if (allChunks.length > 0) {
+    console.log(`  First: "${allChunks[0].text.substring(0, 50)}..." @ index ${allChunks[0].index}`);
+  }
+  if (allChunks.length > 1) {
+    const mid = Math.floor(allChunks.length / 2);
+    console.log(`  Middle: "${allChunks[mid].text.substring(0, 50)}..." @ index ${allChunks[mid].index}`);
+  }
+  if (allChunks.length > 2) {
+    console.log(`  Last: "${allChunks[allChunks.length - 1].text.substring(0, 50)}..." @ index ${allChunks[allChunks.length - 1].index}`);
+  }
 
   // Set up Fuse.js for fuzzy matching
   const fuse = new Fuse(allChunks, {
@@ -105,6 +124,10 @@ export function findTextMatches(
 
     // Normalize transcription for matching (remove punctuation, lowercase)
     const normalizedTranscript = normalizeForMatching(cleanTranscript);
+    console.log(`\n[Fuzzy Matcher] Matching @ ${transcription.timestamp.toFixed(1)}s`);
+    console.log(`  Original:   "${cleanTranscript.substring(0, 60)}..."`);
+    console.log(`  Normalized: "${normalizedTranscript.substring(0, 60)}..."`);
+
     const results = fuse.search(normalizedTranscript);
 
     if (results.length > 0) {
@@ -112,18 +135,21 @@ export function findTextMatches(
       const score = bestMatch.score ?? 1;
       const confidence = 1 - score; // Convert Fuse score to confidence
 
+      console.log(`  Best match: "${bestMatch.item.text.substring(0, 60)}..." (score: ${score.toFixed(3)}, confidence: ${(confidence * 100).toFixed(1)}%)`);
+      console.log(`  Text index: ${bestMatch.item.index}`);
+
       if (confidence >= MIN_CONFIDENCE) {
         syncAnchors.push({
           audioTime: transcription.timestamp,
           textIndex: bestMatch.item.index,
           confidence,
         });
-        console.log(`[Fuzzy Matcher] ✓ Match @ ${transcription.timestamp.toFixed(1)}s (${(confidence * 100).toFixed(1)}% confidence): "${cleanTranscript.substring(0, 50)}..."`);
+        console.log(`  ✓ ACCEPTED (above ${MIN_CONFIDENCE * 100}% threshold)`);
       } else {
-        console.log(`[Fuzzy Matcher] ✗ Low confidence @ ${transcription.timestamp.toFixed(1)}s (${(confidence * 100).toFixed(1)}%): "${cleanTranscript.substring(0, 50)}..."`);
+        console.log(`  ✗ REJECTED (below ${MIN_CONFIDENCE * 100}% threshold)`);
       }
     } else {
-      console.log(`[Fuzzy Matcher] ✗ No match found for: "${cleanTranscript.substring(0, 50)}..."`);
+      console.log(`  ✗ NO MATCHES FOUND in search space`);
     }
   }
 
