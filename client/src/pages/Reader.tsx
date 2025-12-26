@@ -380,9 +380,9 @@ export default function Reader() {
     // Find paragraph boundaries in the original text (don't split - preserve exact positions)
     const text = epub.textContent;
     const paragraphStarts: number[] = [0];
-    
-    // Find all paragraph breaks (double newline or single newline)
-    const regex = /\n\n+|\n/g;
+
+    // Find all paragraph breaks (ONLY double newlines, not single)
+    const regex = /\n\n+/g;  // Match one or more double newlines
     let match;
     while ((match = regex.exec(text)) !== null) {
       const nextStart = match.index + match[0].length;
